@@ -14,7 +14,7 @@ class PartedTestCase(unittest.TestCase):
     @unittest.parameters.iterate("label_type", ["gpt", "msdos", ])
     def test_create_partition_for_whole_drive(self, device_path, label_type):
         disk = Disk(device_path)
-        disk.create_a_new_partition_table()
+        disk.create_a_new_partition_table(label_type)
         self.assertEqual(disk.get_partitions(), [])
         disk.create_partition_for_whole_drive()
         partitions = disk.get_partitions()
