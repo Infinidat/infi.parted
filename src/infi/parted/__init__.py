@@ -38,7 +38,7 @@ def execute_parted(args):
     commandline_arguments = ["parted", ]
     commandline_arguments.extend(PARTED_REQUIRED_ARGUMENTS)
     commandline_arguments.extend(args)
-    parted = execute([commandline_arguments])
+    parted = execute(commandline_arguments)
     parted.wait()
     if parted.get_returncode() != 0:
         raise PartedRuntimeError(parted.get_returncode(), _get_parted_error_message_from_stderr.get_stderr())
