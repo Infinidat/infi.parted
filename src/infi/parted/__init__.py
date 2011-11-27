@@ -60,7 +60,8 @@ class Disk(object):
         return execute_parted(commandline_arguments)
 
     def _read_partition_table(self):
-        return self.execute_parted(["print"])
+        """:returns: the output of parted --machine <device> print, splitted to lines"""
+        return self.execute_parted(["print"]).splitlines()
 
     def has_partition_table(self):
         try:
