@@ -90,10 +90,10 @@ class Disk(object):
         """:returns: one of [None, 'gpt' 'msdos', ...]"""
         if not self.has_partition_table():
             return None
-        return self._read_partition_table().splitlines()[1].split(':')[5]
+        return self._read_partition_table()[1].split(':')[5]
 
     def get_disk_size(self):
-        return self._read_partition_table().splitlines()[1].split(':')[1]
+        return self._read_partition_table()[1].split(':')[1]
 
     def _create_gpt_partition(self, name, start, end):
         args = ["mkpart", ]
