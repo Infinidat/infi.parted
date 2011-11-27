@@ -109,7 +109,7 @@ class Disk(object):
         if label_type == "gpt":
             self._create_gpt_partition("None", start, end)
         elif label_type == "msdos":
-            self._create_primary_partition(start, end).
+            self._create_primary_partition(start, end)
         self.force_kernel_to_re_read_partition_table()
 
     def get_partitions(self):
