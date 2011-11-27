@@ -75,7 +75,7 @@ class Disk(object):
                 raise chain(InvalidPartitionTable())
         return False
 
-    def create_a_new_partion_table(self, label_type):
+    def create_a_new_partition_table(self, label_type):
         """:param label_type: one of the following: ['msdos', 'gpt']"""
         assert(label_type in SUPPORTED_DISK_LABELS)
         self.execute_parted(["mklabel", label_type])
@@ -106,7 +106,7 @@ class Disk(object):
 
     def create_partition_for_whole_drive(self):
         if not self.has_partition_table():
-            self.create_a_new_partion_table("gpt")
+            self.create_a_new_partition_table("gpt")
         label_type = self.get_partition_table_type()
         start, end = '0', self.get_disk_size()
         if label_type == "gpt":
