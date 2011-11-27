@@ -1,3 +1,6 @@
 {
-    "devices": ["/dev/sdb", ]
+    "devices": [
+        "/dev/sdb"
+    ]
 }
+
