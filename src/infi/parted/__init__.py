@@ -28,7 +28,7 @@ PARTED_REQUIRED_ARGUMENTS = ["--machine", # displays machine parseable output
                              ]
 
 def _get_parted_error_message_from_stderr(stderr):
-    return stderr.splt(':', 1)[1]
+    return stderr.split(':', 1)[1]
 
 def execute_parted(args):
     """This function calls the parted utility and returns its machine parsable output, without user intervention
