@@ -57,7 +57,7 @@ class Disk(object):
         return execute_parted(commandline_arguments)
 
     def _read_partition_table(self):
-        return self._execute_parted(["print"])
+        return self.execute_parted(["print"])
 
     def has_partition_table(self):
         try:
@@ -75,7 +75,7 @@ class Disk(object):
     def create_a_new_partion_table(self, label_type):
         """:param label_type: one of the following: ['msdos', 'gpt']"""
         assert(label_type in SUPPORTED_DISK_LABELS)
-        self.execute_parted(self, ["mklabel", label_type])
+        self.execute_parted(["mklabel", label_type])
 
     def destroy_partition_table(self):
         # There is no such capability in the parted utility, need to do something else here
