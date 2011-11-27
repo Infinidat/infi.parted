@@ -124,7 +124,7 @@ class Disk(object):
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
-        execute("partprobe {}".format(self._device_access_path)).wait()
+        execute(["partprobe", format(self._device_access_path)]).wait()
 
 class Partition(object):
     def __init__(self, path, type, size):
