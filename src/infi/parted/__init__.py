@@ -115,7 +115,7 @@ class Disk(object):
     def get_partitions(self):
         if not self.has_partition_table():
             return []
-        return [Partition.from_parted_machine_parsable_line(line)
+        return [Partition.from_parted_machine_parsable_line(self._device_access_path, line)
                 for line in self._read_partition_table()[2:]]
 
     def force_kernel_to_re_read_partition_table(self):
@@ -123,11 +123,11 @@ class Disk(object):
         execute("partprobe {}".format(self._device_access_path)).wait()
 
 class Partition(object):
-    def __init__(self, number, type, size):
+    def __init__(self, path, type, size):
         super(Partition, self).__init__()
-        self._number = number
         self._type = type
         self._size = size
+        self.path = path
 
     def get_number(self):
         return self._number
@@ -138,8 +138,11 @@ class Partition(object):
     def get_size(self):
         return self._size
 
+    def get_access_path(self):
+        return "{}{}".format(self._disk, self._number)
+
     @classmethod
-    def from_parted_machine_parsable_line(cls, line):
+    def from_parted_machine_parsable_line(cls, disk_device_path, line):
         from capacity import from_string
         number, start, end, size, _type, filesystem, flags = line.strip(';').split(':')
-        return cls(int(number), _type, from_string(size))
+        return cls("{}{}".format(disk_device_path, number), _type, from_string(size))
