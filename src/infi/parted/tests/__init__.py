@@ -16,7 +16,7 @@ class PartedTestCase(unittest.TestCase):
         disk = Disk(device_path)
         disk.create_a_new_partition_table(label_type)
         self.assertEqual(disk.get_partitions(), [])
-        disk.create_partition_for_whole_drive()
+        disk.create_partition_for_whole_drive("ext3")
         partitions = disk.get_partitions()
         self.assertEqual(len(partitions), 1)
         self.assertIsInstance(partitions[0], (MBRPartition, GUIDPartition,))
