@@ -148,7 +148,7 @@ class Disk(object):
 
 class MBRPartition(object):
     def __init__(self, disk_block_access_path, number, type, size, filesystem):
-        super(Partition, self).__init__()
+        super(MBRPartition, self).__init__()
         self._type = type
         self._size = size
         self._number = number
@@ -178,7 +178,7 @@ class MBRPartition(object):
 
 class GUIDPartition(object):
     def __init__(self, disk_block_access_path, number, name, size, filesystem):
-        super(Partition, self).__init__()
+        super(GUIDPartition, self).__init__()
         self._name = name
         self._size = size
         self._number = number
