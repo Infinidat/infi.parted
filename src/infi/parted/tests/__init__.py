@@ -1,6 +1,6 @@
 from infi import unittest
 from testconfig import config
-from .. import Disk, Partition
+from .. import Disk, MBRPartition, GUIDPartition
 
 class PartedTestCase(unittest.TestCase):
     @unittest.parameters.iterate("device_path", config.get("devices", []))
@@ -19,4 +19,4 @@ class PartedTestCase(unittest.TestCase):
         disk.create_partition_for_whole_drive()
         partitions = disk.get_partitions()
         self.assertEqual(len(partitions), 1)
-        self.assertIsInstance(partitions[0], Partition)
+        self.assertIsInstance(partitions[0], (MBRPartition, GUIDPartition,))
