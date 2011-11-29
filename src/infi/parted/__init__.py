@@ -95,43 +95,65 @@ class Disk(object):
     def get_disk_size(self):
         return self._read_partition_table()[1].split(':')[1]
 
-    def _create_gpt_partition(self, name, start, end):
+    def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["mkpart", ]
-        args.extend([name, start, end])
+        args.extend([name, filesystem_name, start, end])
         self.execute_parted(args)
 
-    def _create_primary_partition(self, start, end):
+    def _create_primary_partition(self, filesystem_name, start, end):
         args = ["mkpart", ]
-        args.extend(["primary", start, end])
+        args.extend(["primary", filesystem_name, start, end])
         self.execute_parted(args)
 
-    def create_partition_for_whole_drive(self):
+    def create_partition_for_whole_drive(self, filesystem_name):
         if not self.has_partition_table():
             self.create_a_new_partition_table("gpt")
         label_type = self.get_partition_table_type()
         start, end = '0', self.get_disk_size()
         if label_type == "gpt":
-            self._create_gpt_partition("None", start, end)
+            self._create_gpt_partition("None", filesystem_name, start, end)
         elif label_type == "msdos":
-            self._create_primary_partition(start, end)
+            self._create_primary_partition(filesystem_name, start, end)
         self.force_kernel_to_re_read_partition_table()
 
     def get_partitions(self):
         if not self.has_partition_table():
             return []
-        return [Partition.from_parted_machine_parsable_line(self._device_access_path, line)
-                for line in self._read_partition_table()[2:]]
+        if self.get_partition_table_type() == "gpt":
+            return [GUIDPartition.from_parted_machine_parsable_line(self._device_access_path, line)
+                    for line in self._read_partition_table()[2:]]
+        elif self.get_partition_table_type() == "msdos":
+            return [MBRPartition.from_parted_machine_parsable_line(self._device_access_path, line)
+                    for line in self._read_partition_table()[2:]]
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
         execute(["partprobe", format(self._device_access_path)]).wait()
 
-class Partition(object):
-    def __init__(self, path, type, size):
-        super(Partition, self).__init__()
+    def _execute_mkfs(self, filesystem_name, partition_access_path):
+        from infi.execute import execute
+        mkfs = execute(["mkfs.{}".format(filesystem_name), "-F", partition_access_path])
+        if mkfs.get_returncode() != 0:
+            raise RuntimeError(mkfs.get_stderr())
+
+    def _get_partition_acces_path_by_name(self, partition_number):
+        return "{}{}".format(self._device_access_path, partition_number)
+
+    def format_partition(self, partition_number, filesystem_name, mkfs_options={}):
+        """currently mkfs_options is ignored"""
+        self.execute_parted(["mkfs", partition_number, filesystem_name])
+        self.force_kernel_to_re_read_partition_table()
+        partition_access_path = self._get_partition_acces_path_by_name(partition_number)
+        self._execute_mkfs(filesystem_name, partition_access_path)
+
+class MBRPartition(object):
+    def __init__(self, disk_block_access_path, number, type, size, filesystem):
+        super(MBRPartition, self).__init__()
         self._type = type
         self._size = size
-        self.path = path
+        self._number = number
+        self._filesystem = filesystem
+        self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
         return self._number
@@ -143,10 +165,42 @@ class Partition(object):
         return self._size
 
     def get_access_path(self):
-        return "{}{}".format(self._disk, self._number)
+        return "{}{}".format(self.disk_block_access_path, self._number)
+
+    def get_filsystem_name(self):
+        return self._filesystem or None
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
         from capacity import from_string
         number, start, end, size, _type, filesystem, flags = line.strip(';').split(':')
-        return cls("{}{}".format(disk_device_path, number), _type, from_string(size))
+        return cls(disk_device_path, number, _type, from_string(size), filesystem)
+
+class GUIDPartition(object):
+    def __init__(self, disk_block_access_path, number, name, size, filesystem):
+        super(GUIDPartition, self).__init__()
+        self._name = name
+        self._size = size
+        self._number = number
+        self._filesystem = filesystem
+
+    def get_number(self):
+        return self._number
+
+    def get_name(self):
+        return self._name
+
+    def get_size(self):
+        return self._size
+
+    def get_access_path(self):
+        return "{}{}".format(self.disk_block_access_path, self._number)
+
+    def get_filsystem_name(self):
+        return self._filesystem or None
+
+    @classmethod
+    def from_parted_machine_parsable_line(cls, disk_device_path, line):
+        from capacity import from_string
+        number, start, end, size, filesystem, name, flags = line.strip(';').split(':')
+        return cls(disk_device_path, number, name, from_string(size), filesystem)
