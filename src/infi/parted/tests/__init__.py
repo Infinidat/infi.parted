@@ -20,3 +20,5 @@ class PartedTestCase(unittest.TestCase):
         partitions = disk.get_partitions()
         self.assertEqual(len(partitions), 1)
         self.assertIsInstance(partitions[0], (MBRPartition, GUIDPartition,))
+        self.assertIn(partitions[0].get_filesystem_name(), [None, ])
+        self.assertEqual(partitions[0].get_number(), 1)

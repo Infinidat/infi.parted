@@ -156,7 +156,7 @@ class MBRPartition(object):
         self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
-        return self._number
+        return int(self._number)
 
     def get_type(self):
         return self._type
@@ -167,13 +167,13 @@ class MBRPartition(object):
     def get_access_path(self):
         return "{}{}".format(self.disk_block_access_path, self._number)
 
-    def get_filsystem_name(self):
+    def get_filesystem_name(self):
         return self._filesystem or None
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
         from capacity import from_string
-        number, start, end, size, _type, filesystem, flags = line.strip(';').split(':')
+        number, start, end, size, filesystem, _type, flags = line.strip(';').split(':')
         return cls(disk_device_path, number, _type, from_string(size), filesystem)
 
 class GUIDPartition(object):
@@ -185,7 +185,7 @@ class GUIDPartition(object):
         self._filesystem = filesystem
 
     def get_number(self):
-        return self._number
+        return int(self._number)
 
     def get_name(self):
         return self._name
@@ -196,7 +196,7 @@ class GUIDPartition(object):
     def get_access_path(self):
         return "{}{}".format(self.disk_block_access_path, self._number)
 
-    def get_filsystem_name(self):
+    def get_filesystem_name(self):
         return self._filesystem or None
 
     @classmethod
