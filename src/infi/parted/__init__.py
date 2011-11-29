@@ -156,7 +156,7 @@ class MBRPartition(object):
         self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
-        return self._number
+        return int(self._number)
 
     def get_type(self):
         return self._type
