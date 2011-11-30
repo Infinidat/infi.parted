@@ -44,7 +44,7 @@ def execute_parted(args):
     parted.wait()
     if parted.get_returncode() != 0:
         raise PartedRuntimeError(parted.get_returncode(),
-                                 _get_parted_error_message_from_stderr(parted.get_stderr()))
+                                 _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
 
 
