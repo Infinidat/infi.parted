@@ -183,6 +183,7 @@ class GUIDPartition(object):
         self._size = size
         self._number = number
         self._filesystem = filesystem
+        self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
         return int(self._number)
