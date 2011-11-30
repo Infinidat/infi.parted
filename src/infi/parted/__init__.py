@@ -165,7 +165,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        return "{}{}".format(self.disk_block_access_path, self._number)
+        return "{}{}".format(self._disk_block_access_path, self._number)
 
     def get_filesystem_name(self):
         return self._filesystem or None
@@ -194,7 +194,7 @@ class GUIDPartition(object):
         return self._size
 
     def get_access_path(self):
-        return "{}{}".format(self.disk_block_access_path, self._number)
+        return "{}{}".format(self._disk_block_access_path, self._number)
 
     def get_filesystem_name(self):
         return self._filesystem or None
