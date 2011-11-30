@@ -141,7 +141,7 @@ class Disk(object):
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}):
         """currently mkfs_options is ignored"""
-        self.execute_parted(["mkfs", int(partition_number), filesystem_name])
+        self.execute_parted(["mkfs", str(partition_number), filesystem_name])
         self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
         self._execute_mkfs(filesystem_name, partition_access_path)
