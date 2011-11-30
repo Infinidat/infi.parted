@@ -44,7 +44,7 @@ def execute_parted(args):
     parted.wait()
     if parted.get_returncode() != 0:
         raise PartedRuntimeError(parted.get_returncode(),
-                                 _get_parted_error_message_from_stderr(parted.get_stderr()))
+                                 _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
 
 
@@ -141,7 +141,13 @@ class Disk(object):
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}):
         """currently mkfs_options is ignored"""
-        self.execute_parted(["mkfs", partition_number, filesystem_name])
+        try:
+            self.execute_parted(["mkfs", str(partition_number), filesystem_name])
+        except PartedRuntimeError, error:
+            if "not implemented yet" in error.get_error_message():
+                pass
+            else:
+                raise
         self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
         self._execute_mkfs(filesystem_name, partition_access_path)
@@ -165,7 +171,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        return "{}{}".format(self.disk_block_access_path, self._number)
+        return "{}{}".format(self._disk_block_access_path, self._number)
 
     def get_filesystem_name(self):
         return self._filesystem or None
@@ -183,6 +189,7 @@ class GUIDPartition(object):
         self._size = size
         self._number = number
         self._filesystem = filesystem
+        self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
         return int(self._number)
@@ -194,7 +201,7 @@ class GUIDPartition(object):
         return self._size
 
     def get_access_path(self):
-        return "{}{}".format(self.disk_block_access_path, self._number)
+        return "{}{}".format(self._disk_block_access_path, self._number)
 
     def get_filesystem_name(self):
         return self._filesystem or None
