@@ -2,6 +2,9 @@ __import__("pkg_resources").declare_namespace(__name__)
 
 from infi.exceptools import InfiException, chain
 
+# pylint: W0710
+# InfiException does inherit from Exception
+
 class PartedException(InfiException):
     pass
 
