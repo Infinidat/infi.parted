@@ -2,7 +2,7 @@ __import__("pkg_resources").declare_namespace(__name__)
 
 from infi.exceptools import InfiException, chain
 
-# pylint: W0710
+# pylint: disable=W0710,E1002
 # InfiException does inherit from Exception
 
 class PartedException(InfiException):
@@ -142,7 +142,7 @@ class Disk(object):
     def _get_partition_acces_path_by_name(self, partition_number):
         return "{}{}".format(self._device_access_path, partition_number)
 
-    def format_partition(self, partition_number, filesystem_name, mkfs_options={}):
+    def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
         """currently mkfs_options is ignored"""
         try:
             self.execute_parted(["mkfs", str(partition_number), filesystem_name])
@@ -155,10 +155,12 @@ class Disk(object):
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
         self._execute_mkfs(filesystem_name, partition_access_path)
 
+# pylint: disable=R0913
+
 class MBRPartition(object):
-    def __init__(self, disk_block_access_path, number, type, size, filesystem):
+    def __init__(self, disk_block_access_path, number, partition_type, size, filesystem):
         super(MBRPartition, self).__init__()
-        self._type = type
+        self._type = partition_type
         self._size = size
         self._number = number
         self._filesystem = filesystem
