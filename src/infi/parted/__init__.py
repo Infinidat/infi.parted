@@ -76,7 +76,61 @@ def execute_parted(args):
 
 SUPPORTED_DISK_LABELS = ["gpt", "msdos"]
 
-class Disk(object):
+class PartedMixin(object):
+    def get_partition_table_type(self):
+        """:returns: one of [None, 'gpt' 'msdos', ...]"""
+        raise NotImplementedError()
+
+    def get_disk_size(self):
+        raise NotImplementedError()
+
+    def get_partitions(self):
+        raise NotImplementedError()
+
+class PartedV1(PartedMixin):
+    def get_partition_table_type(self):
+        # [4]: 'Partition Table: gpt'
+        return self.read_partition_table()[4].split(":")[-1].strip()
+
+    def get_disk_size(self):
+        # [2]: 'Disk /dev/sdb: 2147MB'
+        return self.read_partition_table()[2].split(':')[-1].strip()
+
+    def get_partitions(self):
+        if not self.has_partition_table():
+            return []
+        header = self.read_partition_table()[6]
+        if self.get_partition_table_type() == "gpt":
+            names = ["Number", "Start", "End", "Size", "File system", "Name", "Flags"]
+            column_indexes = [header.index(name) for name in names]
+            return [GUIDPartition.from_parted_non_machine_parsable_line(self._device_access_path, line, column_indexes)
+                    for line in self.read_partition_table()[7:-1]]
+        elif self.get_partition_table_type() == "msdos":
+            names = ["Number", "Start", "End", "Size", "Type", "File system", "Flags"]
+            column_indexes = [header.index(name) for name in names]
+            return [MBRPartition.from_parted_non_machine_parsable_line(self._device_access_path, line, column_indexes)
+                    for line in self.read_partition_table()[7:-1]]
+
+class PartedV2(PartedMixin):
+    def get_partition_table_type(self):
+        return self.read_partition_table()[1].split(':')[5]
+
+    def get_disk_size(self):
+        return self.read_partition_table()[1].split(':')[1]
+
+    def get_partitions(self):
+        if not self.has_partition_table():
+            return []
+        if self.get_partition_table_type() == "gpt":
+            return [GUIDPartition.from_parted_machine_parsable_line(self._device_access_path, line)
+                    for line in self.read_partition_table()[2:]]
+        elif self.get_partition_table_type() == "msdos":
+            return [MBRPartition.from_parted_machine_parsable_line(self._device_access_path, line)
+                    for line in self.read_partition_table()[2:]]
+
+MatchingPartedMixin = PartedV2 if _is_parted_has_machine_parsable_output() else PartedV1
+
+class Disk(MatchingPartedMixin, object):
     def __init__(self, device_access_path):
         self._device_access_path = device_access_path
 
@@ -85,13 +139,13 @@ class Disk(object):
         commandline_arguments.extend(args)
         return execute_parted(commandline_arguments)
 
-    def _read_partition_table(self):
+    def read_partition_table(self):
         """:returns: the output of parted --machine <device> print, splitted to lines"""
         return self.execute_parted(["print"]).splitlines()
 
     def has_partition_table(self):
         try:
-            self._read_partition_table()
+            self.read_partition_table()
             return True
         except PartedRuntimeError, error:
             if "unrecognised disk label" in error.get_error_message():
@@ -111,15 +165,6 @@ class Disk(object):
         # There is no such capability in the parted utility, need to do something else here
         # sugessstion: get the size of the partition table, and write zeroes on top of it
         raise NotImplementedError()
-
-    def get_partition_table_type(self):
-        """:returns: one of [None, 'gpt' 'msdos', ...]"""
-        if not self.has_partition_table():
-            return None
-        return self._read_partition_table()[1].split(':')[5]
-
-    def get_disk_size(self):
-        return self._read_partition_table()[1].split(':')[1]
 
     def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["mkpart", ]
@@ -141,16 +186,6 @@ class Disk(object):
         elif label_type == "msdos":
             self._create_primary_partition(filesystem_name, start, end)
         self.force_kernel_to_re_read_partition_table()
-
-    def get_partitions(self):
-        if not self.has_partition_table():
-            return []
-        if self.get_partition_table_type() == "gpt":
-            return [GUIDPartition.from_parted_machine_parsable_line(self._device_access_path, line)
-                    for line in self._read_partition_table()[2:]]
-        elif self.get_partition_table_type() == "msdos":
-            return [MBRPartition.from_parted_machine_parsable_line(self._device_access_path, line)
-                    for line in self._read_partition_table()[2:]]
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
@@ -210,6 +245,14 @@ class MBRPartition(object):
         number, start, end, size, filesystem, _type, flags = line.strip(';').split(':')
         return cls(disk_device_path, number, _type, from_string(size), filesystem)
 
+    @classmethod
+    def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
+        from capacity import from_string
+        column_indexes.append(1024)
+        items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
+        number, start, end, size, _type, filesystem, flags = [item.strip() for item in items]
+        return cls(disk_device_path, number, _type, from_string(size), filesystem)
+
 class GUIDPartition(object):
     def __init__(self, disk_block_access_path, number, name, size, filesystem):
         super(GUIDPartition, self).__init__()
@@ -238,4 +281,12 @@ class GUIDPartition(object):
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
         from capacity import from_string
         number, start, end, size, filesystem, name, flags = line.strip(';').split(':')
+        return cls(disk_device_path, number, name, from_string(size), filesystem)
+
+    @classmethod
+    def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
+        from capacity import from_string
+        column_indexes.append(1024)
+        items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
+        number, start, end, size, filesystem, name, flags = [item.strip() for item in items]
         return cls(disk_device_path, number, name, from_string(size), filesystem)
