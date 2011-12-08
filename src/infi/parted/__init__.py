@@ -1,6 +1,9 @@
 __import__("pkg_resources").declare_namespace(__name__)
 
 from infi.exceptools import InfiException, chain
+from logging import getLogger
+
+log = getLogger()
 
 # pylint: disable=W0710,E1002
 # InfiException does inherit from Exception
@@ -62,6 +65,7 @@ def execute_parted(args):
     commandline_arguments = ["parted", ]
     commandline_arguments.extend(PARTED_REQUIRED_ARGUMENTS)
     commandline_arguments.extend(args)
+    log.debug("executing {}".format(" ".join([repr(item) for item in commandline_arguments])))
     parted = execute(commandline_arguments)
     parted.wait()
     if parted.get_returncode() != 0:
