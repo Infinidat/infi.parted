@@ -50,7 +50,7 @@ PARTED_REQUIRED_ARGUMENTS = [
                              ]
 
 if _is_parted_has_machine_parsable_output():
-    PARTED_REQUIRED_ARGUMENTS.extend("--machine")  # displays machine parseable output
+    PARTED_REQUIRED_ARGUMENTS.extend(["--machine", ])  # displays machine parseable output
 
 def _get_parted_error_message_from_stderr(stderr):
     if stderr.split(':', 1) == []:
