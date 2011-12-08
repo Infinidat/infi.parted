@@ -26,9 +26,28 @@ class PartedRuntimeError(PartedException):
 class InvalidPartitionTable(PartedException):
     pass
 
-PARTED_REQUIRED_ARGUMENTS = ["--machine", # displays machine parseable output
+def _get_parted_version():
+    from infi.execute import execute
+    parted = execute(["parted", "--version", ])
+    parted.wait()
+    # stdout possibilities
+    # GNU Parted 1.8.1
+    # or
+    # parted (GNU parted) 2.1
+    # Copyright ..
+    return parted.get_stdout().splitlines()[0].split()[-1]
+
+def _is_parted_has_machine_parsable_output():
+    from pkg_resources import parse_version
+    from platform import system
+    return system() == "Linux" and parse_version(_get_parted_version()) >= parse_version("2.0")
+
+PARTED_REQUIRED_ARGUMENTS = [
                              "--script", # never prompts for user intervention
                              ]
+
+if _is_parted_has_machine_parsable_output():
+    PARTED_REQUIRED_ARGUMENTS.extend("--machine")  # displays machine parseable output
 
 def _get_parted_error_message_from_stderr(stderr):
     if stderr.split(':', 1) == []:
