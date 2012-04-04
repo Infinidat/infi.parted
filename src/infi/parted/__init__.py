@@ -198,7 +198,8 @@ class Disk(MatchingPartedMixin, object):
             raise RuntimeError(mkfs.get_stderr())
 
     def _get_partition_acces_path_by_name(self, partition_number):
-        return "{}{}".format(self._device_access_path, partition_number)
+        prefix = 'p' if 'mapper' in self._disk_block_access_path else ''
+        return "{}{}{}".format(self._disk_block_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
         """currently mkfs_options is ignored"""
