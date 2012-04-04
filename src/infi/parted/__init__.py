@@ -234,7 +234,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = 'p' if self._disk_block_access_path[-1].isdigit() else ''
+        prefix = 'p' if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
