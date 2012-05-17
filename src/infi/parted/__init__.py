@@ -3,7 +3,7 @@ __import__("pkg_resources").declare_namespace(__name__)
 from infi.exceptools import InfiException, chain
 from logging import getLogger
 
-log = getLogger()
+log = getLogger(__name__)
 
 # pylint: disable=W0710,E1002
 # InfiException does inherit from Exception
@@ -69,6 +69,10 @@ def execute_parted(args):
     parted = execute(commandline_arguments)
     parted.wait()
     if parted.get_returncode() != 0:
+        log.debug("parted returned non-zero exit code: {}".format(parted.get_returncode()))
+        if "WARNING" in parted.get_stdout():
+            # don't know what's the error code in this case, and failed to re-create it
+            return parted.get_stdout()
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
