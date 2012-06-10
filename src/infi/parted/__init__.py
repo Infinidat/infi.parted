@@ -197,9 +197,11 @@ class Disk(MatchingPartedMixin, object):
 
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
+        log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
         mkfs = execute(["mkfs.{}".format(filesystem_name), "-F", partition_access_path])
         if mkfs.get_returncode() != 0:
             raise RuntimeError(mkfs.get_stderr())
+        log.info("filesystem formatted")
 
     def _get_partition_acces_path_by_name(self, partition_number):
         prefix = 'p' if 'mapper' in self._device_access_path else ''
@@ -210,6 +212,7 @@ class Disk(MatchingPartedMixin, object):
         try:
             self.execute_parted(["mkfs", str(partition_number), filesystem_name])
         except PartedRuntimeError, error:
+            log.exception("parted error")
             if "not implemented yet" in error.get_error_message():
                 pass
             else:
