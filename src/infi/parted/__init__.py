@@ -204,7 +204,7 @@ class Disk(MatchingPartedMixin, object):
         log.info("filesystem formatted")
 
     def _get_partition_acces_path_by_name(self, partition_number):
-        prefix = '-part' if 'mapper' in self._device_access_path else ''
+        prefix = 'p' if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
