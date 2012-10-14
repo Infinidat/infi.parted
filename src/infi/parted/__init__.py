@@ -81,6 +81,9 @@ def execute_parted(args):
         if "WARNING" in parted.get_stdout():
             # don't know what's the error code in this case, and failed to re-create it
             return parted.get_stdout()
+        if "aligned for best performance" in parted.get_stdout():
+            # HIP-330 we something get. according to parted's source, this is a warning
+            return parted.get_stdout()
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
