@@ -11,6 +11,10 @@ log = getLogger(__name__)
 class PartedException(InfiException):
     pass
 
+def is_ubuntu():
+    from platform import dist
+    return dist()[0].lower() == "ubuntu"
+
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
         super(PartedException, self).__init__()
@@ -203,8 +207,11 @@ class Disk(MatchingPartedMixin, object):
             raise RuntimeError(mkfs.get_stderr())
         log.info("filesystem formatted")
 
+    def _get_prefix(self):
+        return '-part' if is_ubuntu() else 'p'
+
     def _get_partition_acces_path_by_name(self, partition_number):
-        prefix = 'p' if 'mapper' in self._device_access_path else ''
+        prefix = self._get_prefix() if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
