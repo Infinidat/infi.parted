@@ -1,6 +1,7 @@
 __import__("pkg_resources").declare_namespace(__name__)
 
 from infi.exceptools import InfiException, chain
+from infi.pyutils.retry import Retryable, WaitAndRetryStrategy, retry_method
 from logging import getLogger
 
 log = getLogger(__name__)
@@ -10,6 +11,13 @@ log = getLogger(__name__)
 
 class PartedException(InfiException):
     pass
+
+def is_ubuntu():
+    from platform import dist
+    return dist()[0].lower() == "ubuntu"
+
+def get_multipath_prefix():
+    return 'p'
 
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
@@ -73,6 +81,9 @@ def execute_parted(args):
         if "WARNING" in parted.get_stdout():
             # don't know what's the error code in this case, and failed to re-create it
             return parted.get_stdout()
+        if "aligned for best performance" in parted.get_stdout():
+            # HIP-330 we something get. according to parted's source, this is a warning
+            return parted.get_stdout()
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
@@ -134,7 +145,9 @@ class PartedV2(PartedMixin):
 
 MatchingPartedMixin = PartedV2 if _is_parted_has_machine_parsable_output() else PartedV1
 
-class Disk(MatchingPartedMixin, object):
+class Disk(MatchingPartedMixin, Retryable, object):
+    retry_strategy = WaitAndRetryStrategy(max_retries=30, wait=1)
+
     def __init__(self, device_access_path):
         self._device_access_path = device_access_path
 
@@ -190,6 +203,24 @@ class Disk(MatchingPartedMixin, object):
         elif label_type == "msdos":
             self._create_primary_partition(filesystem_name, start, end)
         self.force_kernel_to_re_read_partition_table()
+        self.wait_for_partition_access_path_to_be_created()
+
+    @retry_method
+    def wait_for_partition_access_path_to_be_created(self):
+        from os import path, readlink
+        partitions = self.get_partitions()
+        if not partitions:
+            raise PartedException("Failed to find partition after creating one")
+        access_path = partitions[0].get_access_path()
+        if not path.exists(access_path):
+            raise PartedException("Block access path for created partition does not exist")
+        log.debug("Partition access path {!r} exists".format(access_path))
+        if not path.islink(access_path):
+            return
+        link_path = path.abspath(path.join(path.dirname(access_path), readlink(access_path)))
+        if not path.exists(link_path):
+            raise PartedException("Read-link Block access path for created partition does not exist")
+        log.debug("Read-link Partition access path {!r} exists".format(link_path))
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
@@ -204,7 +235,7 @@ class Disk(MatchingPartedMixin, object):
         log.info("filesystem formatted")
 
     def _get_partition_acces_path_by_name(self, partition_number):
-        prefix = 'p' if 'mapper' in self._device_access_path else ''
+        prefix = get_multipath_prefix() if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
@@ -242,7 +273,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = 'p' if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
@@ -281,7 +312,7 @@ class GUIDPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = 'p' if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
