@@ -16,8 +16,8 @@ def is_ubuntu():
     from platform import dist
     return dist()[0].lower() == "ubuntu"
 
-def get_multipath_prefix():
-    return 'p'
+def get_multipath_prefix(disk_access_path):
+    return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
 
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
@@ -224,7 +224,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
-        execute(["partprobe", format(self._device_access_path)]).wait()
+        execute(["partprobe"]).wait()
 
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
@@ -235,7 +235,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         log.info("filesystem formatted")
 
     def _get_partition_acces_path_by_name(self, partition_number):
-        prefix = get_multipath_prefix() if 'mapper' in self._device_access_path else ''
+        prefix = get_multipath_prefix(self._device_access_path) if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
@@ -273,7 +273,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
@@ -312,7 +312,7 @@ class GUIDPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
