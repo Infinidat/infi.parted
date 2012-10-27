@@ -208,11 +208,14 @@ class Disk(MatchingPartedMixin, Retryable, object):
     @retry_method
     def wait_for_partition_access_path_to_be_created(self):
         from os import path, readlink
+        from glob import glob
         partitions = self.get_partitions()
         if not partitions:
             raise PartedException("Failed to find partition after creating one")
         access_path = partitions[0].get_access_path()
         if not path.exists(access_path):
+            logger.debug("partitions are {!r}".format(partitions))
+            logger.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
             raise PartedException("Block access path for created partition does not exist")
         log.debug("Partition access path {!r} exists".format(access_path))
         if not path.islink(access_path):
