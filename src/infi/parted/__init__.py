@@ -17,6 +17,12 @@ def is_ubuntu():
     return dist()[0].lower() == "ubuntu"
 
 def get_multipath_prefix(disk_access_path):
+    # when used with user_friendly_names:
+    # redhat: /dev/mapper/mpath[a-z]
+    # ubuntu: /dev/mapper/mpath%d+
+    from re import match
+    if match('.*mpath[a-z]+.*', disk_access_path):
+        return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
 
 class PartedRuntimeError(PartedException):
