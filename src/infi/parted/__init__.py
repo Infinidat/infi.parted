@@ -146,7 +146,7 @@ class PartedV2(PartedMixin):
 MatchingPartedMixin = PartedV2 if _is_parted_has_machine_parsable_output() else PartedV1
 
 class Disk(MatchingPartedMixin, Retryable, object):
-    retry_strategy = WaitAndRetryStrategy(max_retries=30, wait=1)
+    retry_strategy = WaitAndRetryStrategy(max_retries=60, wait=)
 
     def __init__(self, device_access_path):
         self._device_access_path = device_access_path
