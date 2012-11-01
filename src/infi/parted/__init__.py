@@ -16,8 +16,14 @@ def is_ubuntu():
     from platform import dist
     return dist()[0].lower() == "ubuntu"
 
-def get_multipath_prefix():
-    return 'p'
+def get_multipath_prefix(disk_access_path):
+    # when used with user_friendly_names:
+    # redhat: /dev/mapper/mpath[a-z]
+    # ubuntu: /dev/mapper/mpath%d+
+    from re import match
+    if match('.*mpath[a-z]+.*', disk_access_path):
+        return 'p'
+    return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
 
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
@@ -146,7 +152,7 @@ class PartedV2(PartedMixin):
 MatchingPartedMixin = PartedV2 if _is_parted_has_machine_parsable_output() else PartedV1
 
 class Disk(MatchingPartedMixin, Retryable, object):
-    retry_strategy = WaitAndRetryStrategy(max_retries=30, wait=1)
+    retry_strategy = WaitAndRetryStrategy(max_retries=60, wait=5)
 
     def __init__(self, device_access_path):
         self._device_access_path = device_access_path
@@ -208,11 +214,14 @@ class Disk(MatchingPartedMixin, Retryable, object):
     @retry_method
     def wait_for_partition_access_path_to_be_created(self):
         from os import path, readlink
+        from glob import glob
         partitions = self.get_partitions()
         if not partitions:
             raise PartedException("Failed to find partition after creating one")
         access_path = partitions[0].get_access_path()
         if not path.exists(access_path):
+            log.debug("partitions are {!r}".format(partitions))
+            log.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
             raise PartedException("Block access path for created partition does not exist")
         log.debug("Partition access path {!r} exists".format(access_path))
         if not path.islink(access_path):
@@ -224,7 +233,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
-        execute(["partprobe", format(self._device_access_path)]).wait()
+        execute(["partprobe"]).wait()
 
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
@@ -235,7 +244,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         log.info("filesystem formatted")
 
     def _get_partition_acces_path_by_name(self, partition_number):
-        prefix = get_multipath_prefix() if 'mapper' in self._device_access_path else ''
+        prefix = get_multipath_prefix(self._device_access_path) if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
@@ -273,7 +282,7 @@ class MBRPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
@@ -312,7 +321,7 @@ class GUIDPartition(object):
         return self._size
 
     def get_access_path(self):
-        prefix = get_multipath_prefix() if 'mapper' in self._disk_block_access_path else ''
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def get_filesystem_name(self):
