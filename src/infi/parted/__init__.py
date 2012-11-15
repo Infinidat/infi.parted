@@ -1,7 +1,7 @@
 __import__("pkg_resources").declare_namespace(__name__)
 
 from infi.exceptools import InfiException, chain
-from infi.pyutils.retry import Retryable, WaitAndRetryStrategy, retry_method
+from infi.pyutils.retry import Retryable, WaitAndRetryStrategy, retry_func
 from logging import getLogger
 
 log = getLogger(__name__)
@@ -152,8 +152,6 @@ class PartedV2(PartedMixin):
 MatchingPartedMixin = PartedV2 if _is_parted_has_machine_parsable_output() else PartedV1
 
 class Disk(MatchingPartedMixin, Retryable, object):
-    retry_strategy = WaitAndRetryStrategy(max_retries=60, wait=5)
-
     def __init__(self, device_access_path):
         self._device_access_path = device_access_path
 
@@ -211,7 +209,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         self.force_kernel_to_re_read_partition_table()
         self.wait_for_partition_access_path_to_be_created()
 
-    @retry_method
+    @retry_func(WaitAndRetryStrategy(max_retries=60, wait=5))
     def wait_for_partition_access_path_to_be_created(self):
         from os import path, readlink
         from glob import glob
@@ -235,6 +233,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         from infi.execute import execute
         execute(["partprobe"]).wait()
 
+    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
         log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
