@@ -114,7 +114,7 @@ class PartedV1(PartedMixin):
         # [4]: 'Partition Table: gpt'
         return self.read_partition_table()[4].split(":")[-1].strip()
 
-    def get_disk_size_in_bytes(self):
+    def get_size_in_bytes(self):
         # [2]: 'Disk /dev/sdb: 2147MB'
         return int(self.read_partition_table()[2].split(':')[-1].strip()[:-1])
 
