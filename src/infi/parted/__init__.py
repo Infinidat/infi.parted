@@ -5,6 +5,7 @@ from infi.pyutils.retry import Retryable, WaitAndRetryStrategy, retry_func
 from logging import getLogger
 
 log = getLogger(__name__)
+START_OFFSET_BY_LABEL_TYPE = dict(gpt=17408, msdos=512)
 
 # pylint: disable=W0710,E1002
 # InfiException does inherit from Exception
@@ -27,7 +28,7 @@ def get_multipath_prefix(disk_access_path):
 
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
-        super(PartedException, self).__init__()
+        super(PartedRuntimeError, self).__init__()
         self._rc = returncode
         self._em = error_message
 
@@ -102,7 +103,7 @@ class PartedMixin(object):
         """:returns: one of [None, 'gpt' 'msdos', ...]"""
         raise NotImplementedError()
 
-    def get_disk_size(self):
+    def get_size_in_bytes(self):
         raise NotImplementedError()
 
     def get_partitions(self):
@@ -113,9 +114,9 @@ class PartedV1(PartedMixin):
         # [4]: 'Partition Table: gpt'
         return self.read_partition_table()[4].split(":")[-1].strip()
 
-    def get_disk_size(self):
+    def get_size_in_bytes(self):
         # [2]: 'Disk /dev/sdb: 2147MB'
-        return self.read_partition_table()[2].split(':')[-1].strip()
+        return int(self.read_partition_table()[2].split(':')[-1].strip()[:-1])
 
     def get_partitions(self):
         if not self.has_partition_table():
@@ -136,8 +137,8 @@ class PartedV2(PartedMixin):
     def get_partition_table_type(self):
         return self.read_partition_table()[1].split(':')[5]
 
-    def get_disk_size(self):
-        return self.read_partition_table()[1].split(':')[1]
+    def get_size_in_bytes(self):
+        return int(self.read_partition_table()[1].split(':')[1][:-1])
 
     def get_partitions(self):
         if not self.has_partition_table():
@@ -162,7 +163,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
 
     def read_partition_table(self):
         """:returns: the output of parted --machine <device> print, splitted to lines"""
-        return self.execute_parted(["print"]).splitlines()
+        return self.execute_parted(["unit", "B", "print"]).splitlines()
 
     def has_partition_table(self):
         try:
@@ -177,8 +178,9 @@ class Disk(MatchingPartedMixin, Retryable, object):
                 raise chain(InvalidPartitionTable())
         return False
 
-    def create_a_new_partition_table(self, label_type):
+    def create_a_new_partition_table(self, label_type, alignment_in_bytes=None):
         """:param label_type: one of the following: ['msdos', 'gpt']"""
+        # in linux we don't create a reserved partition at the begging on the disk, so there's no alignment here
         assert(label_type in SUPPORTED_DISK_LABELS)
         self.execute_parted(["mklabel", label_type])
 
@@ -188,23 +190,31 @@ class Disk(MatchingPartedMixin, Retryable, object):
         raise NotImplementedError()
 
     def _create_gpt_partition(self, name, filesystem_name, start, end):
-        args = ["mkpart", ]
+        args = ["unit", "B", "mkpart", ]
         args.extend([name, filesystem_name, start, end])
         self.execute_parted(args)
 
     def _create_primary_partition(self, filesystem_name, start, end):
-        args = ["mkpart", ]
+        args = ["unit", "B", "mkpart", ]
         args.extend(["primary", filesystem_name, start, end])
         self.execute_parted(args)
 
-    def create_partition_for_whole_drive(self, filesystem_name):
+    def create_partition_for_whole_drive(self, filesystem_name, alignment_in_bytes=None):
         if not self.has_partition_table():
-            self.create_a_new_partition_table("gpt")
+            self.create_a_new_partition_table("gpt", alignment_in_bytes)
         label_type = self.get_partition_table_type()
-        start, end = '0', self.get_disk_size()
+        start = START_OFFSET_BY_LABEL_TYPE.get(label_type)
+        if start is None:
+            return
+        if alignment_in_bytes:
+            start_alignment = start % alignment_in_bytes
+            if start_alignment:
+                start += alignment_in_bytes - start_alignment
         if label_type == "gpt":
+            start, end = str(start) + "B", str(self.get_size_in_bytes() - start) + "B"
             self._create_gpt_partition("None", filesystem_name, start, end)
         elif label_type == "msdos":
+            start, end = str(start) + "B", str(self.get_size_in_bytes() - start) + "B"
             self._create_primary_partition(filesystem_name, start, end)
         self.force_kernel_to_re_read_partition_table()
         self.wait_for_partition_access_path_to_be_created()
@@ -262,14 +272,43 @@ class Disk(MatchingPartedMixin, Retryable, object):
 
 # pylint: disable=R0913
 
-class MBRPartition(object):
-    def __init__(self, disk_block_access_path, number, partition_type, size, filesystem):
-        super(MBRPartition, self).__init__()
-        self._type = partition_type
-        self._size = size
-        self._number = number
-        self._filesystem = filesystem
+
+def from_string(capacity_string):
+    import capacity
+    try:
+        return capacity.from_string(capacity_string)
+    except ValueError:  # \d+B
+        return int(capacity_string[:-1])
+
+class Partition(object):
+    def __init__(self, disk_block_access_path, number, start, end, size):
+        super(Partition, self).__init__()
         self._disk_block_access_path = disk_block_access_path
+        self._number = number
+        self._start = start
+        self._end = end
+        self._size = size
+
+    def get_size_in_bytes(self):
+        return min(self._end - self._start, self._size)  # size may be one byte larger
+
+    def execute_parted(self, args):
+        commandline_arguments = [self._disk_block_access_path]
+        commandline_arguments.extend(args)
+        return execute_parted(commandline_arguments)
+
+    def resize(self, size_in_bytes):
+        raise NotImplementedError()
+
+    def force_kernel_to_re_read_partition_table(self):
+        from infi.execute import execute
+        execute(["partprobe", format(self._disk_block_access_path)]).wait()
+
+class MBRPartition(Partition):
+    def __init__(self, disk_block_access_path, number, partition_type, start, end, size, filesystem):
+        super(MBRPartition, self).__init__(disk_block_access_path, number, start, end, size)
+        self._type = partition_type
+        self._filesystem = filesystem
 
     def get_number(self):
         return int(self._number)
@@ -277,9 +316,6 @@ class MBRPartition(object):
     def get_type(self):
         return self._type
 
-    def get_size(self):
-        return self._size
-
     def get_access_path(self):
         prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
@@ -287,28 +323,27 @@ class MBRPartition(object):
     def get_filesystem_name(self):
         return self._filesystem or None
 
+    def resize(self, size_in_bytes):
+        raise NotImplementedError()
+
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        from capacity import from_string
         number, start, end, size, filesystem, _type, flags = line.strip(';').split(':')
-        return cls(disk_device_path, number, _type, from_string(size), filesystem)
+        return cls(disk_device_path, int(number), _type, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
     def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
-        from capacity import from_string
         column_indexes.append(1024)
         items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
         number, start, end, size, _type, filesystem, flags = [item.strip() for item in items]
-        return cls(disk_device_path, number, _type, from_string(size), filesystem)
+        return cls(disk_device_path, int(number), _type, from_string(start), from_string(end), from_string(size), filesystem)
 
-class GUIDPartition(object):
-    def __init__(self, disk_block_access_path, number, name, size, filesystem):
-        super(GUIDPartition, self).__init__()
+
+class GUIDPartition(Partition):
+    def __init__(self, disk_block_access_path, number, name, start, end, size, filesystem):
+        super(GUIDPartition, self).__init__(disk_block_access_path, number, start, end, size)
         self._name = name
-        self._size = size
-        self._number = number
         self._filesystem = filesystem
-        self._disk_block_access_path = disk_block_access_path
 
     def get_number(self):
         return int(self._number)
@@ -316,9 +351,6 @@ class GUIDPartition(object):
     def get_name(self):
         return self._name
 
-    def get_size(self):
-        return self._size
-
     def get_access_path(self):
         prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
@@ -328,14 +360,12 @@ class GUIDPartition(object):
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        from capacity import from_string
         number, start, end, size, filesystem, name, flags = line.strip(';').split(':')
-        return cls(disk_device_path, number, name, from_string(size), filesystem)
+        return cls(disk_device_path, int(number), name, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
     def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
-        from capacity import from_string
         column_indexes.append(1024)
         items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
         number, start, end, size, filesystem, name, flags = [item.strip() for item in items]
-        return cls(disk_device_path, number, name, from_string(size), filesystem)
+        return cls(disk_device_path, int(number), name, from_string(start), from_string(end), from_string(size), filesystem)
