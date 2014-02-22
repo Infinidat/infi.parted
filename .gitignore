@@ -38,3 +38,4 @@ src/infi/hello/__version__.py
 
 
 src/infi/parted/__version__.py
+.cache
