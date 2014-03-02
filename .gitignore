@@ -41,3 +41,4 @@ src/infi/parted/__version__.py
 .cache
 eggs
 parts
+bootstrap.py
