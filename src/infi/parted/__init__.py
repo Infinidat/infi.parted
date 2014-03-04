@@ -13,6 +13,9 @@ START_OFFSET_BY_LABEL_TYPE = dict(gpt=17408, msdos=512)
 class PartedException(InfiException):
     pass
 
+class PartedNotInstalledException(PartedException):
+    pass
+
 def is_ubuntu():
     from platform import dist
     return dist()[0].lower() == "ubuntu"
@@ -46,7 +49,10 @@ class InvalidPartitionTable(PartedException):
 
 def _get_parted_version():
     from infi.execute import execute
-    parted = execute(["parted", "--version", ])
+    try:
+        parted = execute(["parted", "--version", ])
+    except OSError:
+        raise PartedNotInstalledException()
     parted.wait()
     # stdout possibilities
     # GNU Parted 1.8.1
@@ -58,7 +64,10 @@ def _get_parted_version():
 def _is_parted_has_machine_parsable_output():
     from pkg_resources import parse_version
     from platform import system
-    return system() == "Linux" and parse_version(_get_parted_version()) >= parse_version("2.0")
+    try:
+        return system() == "Linux" and parse_version(_get_parted_version()) >= parse_version("2.0")
+    except PartedException:
+        return False
 
 PARTED_REQUIRED_ARGUMENTS = [
                              "--script", # never prompts for user intervention
@@ -81,7 +90,10 @@ def execute_parted(args):
     commandline_arguments.extend(PARTED_REQUIRED_ARGUMENTS)
     commandline_arguments.extend(args)
     log.debug("executing {}".format(" ".join([repr(item) for item in commandline_arguments])))
-    parted = execute(commandline_arguments)
+    try:
+        parted = execute(commandline_arguments)
+    except OSError:
+        raise PartedNotInstalledException()
     parted.wait()
     if parted.get_returncode() != 0:
         log.debug("parted returned non-zero exit code: {}".format(parted.get_returncode()))
