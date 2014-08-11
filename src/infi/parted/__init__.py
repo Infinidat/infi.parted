@@ -25,6 +25,11 @@ def get_multipath_prefix(disk_access_path):
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
     from re import match
+    from platform import linux_distribution
+    # for redhat / centos 7 - use no prefix
+    linux_dist, linux_ver, _id = linux_distribution()
+    if linux_dist.lower().startswith("red hat") and linux_ver.split(".")[0] == "7":
+        return ''
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
