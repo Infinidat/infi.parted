@@ -17,14 +17,20 @@ class PartedNotInstalledException(PartedException):
     pass
 
 def is_ubuntu():
-    from platform import dist
-    return dist()[0].lower() == "ubuntu"
+    from platform import linux_distribution
+    return linux_distribution()[0].lower().startswith("ubuntu")
 
 def get_multipath_prefix(disk_access_path):
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
     from re import match
+    from platform import linux_distribution
+    # for redhat / centos 7 - use no prefix
+    linux_dist, linux_ver, _id = linux_distribution()
+    ldist = linux_dist.lower()
+    if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
+        return ''
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
