@@ -324,6 +324,16 @@ class Partition(object):
         from infi.execute import execute
         execute(["partprobe", format(self._disk_block_access_path)]).wait()
 
+    def get_filesystem_name(self):
+        return self._filesystem or self.get_filesystem_name_from_blkid()
+
+    def get_filesystem_name_from_blkid(self):
+        from infi.execute import execute_assert_success
+        from re import search
+        output = execute_assert_success(["blkid", self.get_access_path()]).get_stdout()
+        return search(r'TYPE="([^\"]+)*"', output).group(1)
+
+
 class MBRPartition(Partition):
     def __init__(self, disk_block_access_path, number, partition_type, start, end, size, filesystem):
         super(MBRPartition, self).__init__(disk_block_access_path, number, start, end, size)
@@ -339,9 +349,6 @@ class MBRPartition(Partition):
     def get_access_path(self):
         prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
-
-    def get_filesystem_name(self):
-        return self._filesystem or None
 
     def resize(self, size_in_bytes):
         raise NotImplementedError()
@@ -374,9 +381,6 @@ class GUIDPartition(Partition):
     def get_access_path(self):
         prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
         return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
-
-    def get_filesystem_name(self):
-        return self._filesystem or None
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
