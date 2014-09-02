@@ -102,7 +102,9 @@ def execute_parted(args):
         raise PartedNotInstalledException()
     parted.wait()
     if parted.get_returncode() != 0:
-        log.debug("parted returned non-zero exit code: {}".format(parted.get_returncode()))
+        log.debug("parted returned non-zero exit code: {}, stderr and stdout to follow".format(parted.get_returncode()))
+        log.debug(parted.get_stderr())
+        log.debug(parted.get_stdout())
         if "WARNING" in parted.get_stdout():
             # don't know what's the error code in this case, and failed to re-create it
             return parted.get_stdout()
