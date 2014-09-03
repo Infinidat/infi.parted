@@ -209,11 +209,13 @@ class Disk(MatchingPartedMixin, Retryable, object):
         # sugessstion: get the size of the partition table, and write zeroes on top of it
         raise NotImplementedError()
 
+    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
     def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend([name, filesystem_name, start, end])
         self.execute_parted(args)
 
+    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
     def _create_primary_partition(self, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend(["primary", filesystem_name, start, end])
