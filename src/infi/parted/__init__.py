@@ -271,7 +271,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         from infi.execute import execute
         execute(["partprobe", format(self._device_access_path)]).wait()
 
-    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
+    @retry_func(WaitAndRetryStrategy(max_retries=60, wait=5))
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
         log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
