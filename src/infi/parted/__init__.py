@@ -105,6 +105,14 @@ def execute_parted(args):
         log.debug("parted returned non-zero exit code: {}, stderr and stdout to follow".format(parted.get_returncode()))
         log.debug(parted.get_stderr())
         log.debug(parted.get_stdout())
+        if "device-mapper: create ioctl" in parted.get_stderr():
+            # this happens sometimes on redhat-7
+            # at first we added a retry, but the repeating execution printed:
+            # You requested a partition from 65536B to 999934464B (sectors 128..1952997).
+            # The closest location we can manage is 65024B to 65024B (sectors 127..127).
+            # meaning the first execution suceeded to create the partition
+            # so now we're just ignore the return code in case we see this message
+            return parted.get_stdout()
         if "WARNING" in parted.get_stdout():
             # don't know what's the error code in this case, and failed to re-create it
             return parted.get_stdout()
@@ -209,13 +217,11 @@ class Disk(MatchingPartedMixin, Retryable, object):
         # sugessstion: get the size of the partition table, and write zeroes on top of it
         raise NotImplementedError()
 
-    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
     def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend([name, filesystem_name, start, end])
         self.execute_parted(args)
 
-    @retry_func(WaitAndRetryStrategy(max_retries=5, wait=5))
     def _create_primary_partition(self, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend(["primary", filesystem_name, start, end])
