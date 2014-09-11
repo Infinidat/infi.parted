@@ -277,7 +277,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
         mkfs = execute(["mkfs.{}".format(filesystem_name), "-F", partition_access_path])
         if mkfs.get_returncode() != 0:
-            logger.debug("mkfs failed (): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
+            log.debug("mkfs failed (): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
             raise RuntimeError(mkfs.get_stderr())
         log.info("filesystem formatted")
 
