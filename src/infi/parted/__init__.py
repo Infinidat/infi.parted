@@ -31,7 +31,7 @@ def get_multipath_prefix(disk_access_path):
     ldist = linux_dist.lower()
     if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
         return ''
-    if ldist.startswith("ubuntu") and match('.*mpath[a-z]+.*', disk_access_path):
+    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
         return '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
