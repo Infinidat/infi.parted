@@ -24,6 +24,7 @@ def get_multipath_prefix(disk_access_path):
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
+    # suse: /dev/mapper/mpath[a-z]
     from re import match
     from platform import linux_distribution
     # for redhat / centos 7 - use no prefix
@@ -33,6 +34,8 @@ def get_multipath_prefix(disk_access_path):
         return ''
     if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
         return '-part'
+    if ldist.startswith("suse"):
+        return '_part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
@@ -258,7 +261,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
             raise PartedException("Failed to find partition after creating one")
         access_path = partitions[0].get_access_path()
         if not path.exists(access_path):
-            log.debug("partitions are {!r}".format(partitions))
+            log.debug("partitions are {!r}".format([p.get_access_path() for p in partitions]))
             log.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
             raise PartedException("Block access path for created partition does not exist")
         log.debug("Partition access path {!r} exists".format(access_path))
