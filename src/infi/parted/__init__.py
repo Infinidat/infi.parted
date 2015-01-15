@@ -345,7 +345,12 @@ class Partition(object):
         from infi.execute import execute_assert_success
         from re import search
         output = execute_assert_success(["blkid", self.get_access_path()]).get_stdout()
-        return search(r'TYPE="([^\"]+)*"', output).group(1)
+        # HIP-1433 blkid sometimes shows SEC_TYPE
+        # https://access.redhat.com/solutions/705653
+        # http://ubuntuforums.org/showthread.php?t=1177419
+        # For example:
+        # UUID="b6e84210-326d-4131-9916-b0fb1d254b5a" SEC_TYPE="ext2" TYPE="ext3"
+        return search(r' TYPE="([^\"]+)*"', output).group(1)
 
 
 class MBRPartition(Partition):
