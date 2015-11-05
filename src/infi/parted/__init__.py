@@ -379,8 +379,8 @@ class MBRPartition(Partition):
 
     @classmethod
     def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
-        indexes_list = column_indexes + [1024]
-        items = [line[indexes_list[index]:indexes_list[index + 1]] for index in range(len(indexes_list) - 1)]
+        column_indexes.append(1024)
+        items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
         number, start, end, size, _type, filesystem, flags = [item.strip() for item in items]
         return cls(disk_device_path, int(number), _type, from_string(start), from_string(end), from_string(size), filesystem)
 
@@ -408,7 +408,7 @@ class GUIDPartition(Partition):
 
     @classmethod
     def from_parted_non_machine_parsable_line(cls, disk_device_path, line, column_indexes):
-        indexes_list = column_indexes + [1024]
-        items = [line[indexes_list[index]:indexes_list[index + 1]] for index in range(len(indexes_list) - 1)]
+        column_indexes.append(1024)
+        items = [line[column_indexes[index]:column_indexes[index + 1]] for index in range(len(column_indexes) - 1)]
         number, start, end, size, filesystem, name, flags = [item.strip() for item in items]
         return cls(disk_device_path, int(number), name, from_string(start), from_string(end), from_string(size), filesystem)
