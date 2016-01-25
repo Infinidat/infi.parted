@@ -127,7 +127,7 @@ def execute_parted(args):
         if "aligned for best performance" in parted.get_stdout():
             # HIP-330 we something get. according to parted's source, this is a warning
             return parted.get_stdout()
-        if 'invalid token': in parted.get_stderr():
+        if 'invalid token' in parted.get_stderr():
             # this happens on with vfat filesystems on centos 7.2
             raise InvalidToken(parted.get_returncode(), parted.parted.get_stdout())
         raise PartedRuntimeError(parted.get_returncode(),
