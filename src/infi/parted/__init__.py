@@ -129,7 +129,7 @@ def execute_parted(args):
             return parted.get_stdout()
         if 'invalid token' in parted.get_stderr():
             # this happens on with vfat filesystems on centos 7.2
-            raise InvalidToken(parted.get_returncode(), parted.parted.get_stdout())
+            raise InvalidToken(parted.get_returncode(), parted.get_stdout())
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
