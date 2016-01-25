@@ -58,6 +58,9 @@ class PartedRuntimeError(PartedException):
 class InvalidPartitionTable(PartedException):
     pass
 
+class InvalidToken(PartedRuntimeError):
+    pass
+
 def _get_parted_version():
     from infi.execute import execute
     try:
@@ -124,6 +127,9 @@ def execute_parted(args):
         if "aligned for best performance" in parted.get_stdout():
             # HIP-330 we something get. according to parted's source, this is a warning
             return parted.get_stdout()
+        if 'invalid token': in parted.get_stderr():
+            # this happens on with vfat filesystems on centos 7.2
+            raise InvalidToken(parted.get_returncode(), parted.parted.get_stdout())
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
@@ -225,12 +231,20 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend([name, filesystem_name, start, end])
-        self.execute_parted(args)
+        try:
+            self.execute_parted(args)
+        except InvalidToken:
+            args.pop(4)
+            self.execute_parted(args)
 
     def _create_primary_partition(self, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend(["primary", filesystem_name, start, end])
-        self.execute_parted(args)
+        try:
+            self.execute_parted(args)
+        except InvalidToken:
+            args.pop(4)
+            self.execute_parted(args)
 
     def create_partition_for_whole_drive(self, filesystem_name, alignment_in_bytes=None):
         if not self.has_partition_table():
