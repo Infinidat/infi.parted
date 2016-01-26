@@ -294,7 +294,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
         log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
-        mkfs = execute(["mkfs.{}".format(filesystem_name), "-F", partition_access_path])
+        mkfs = execute(["mkfs.{}".format(filesystem_name), partition_access_path])
         if mkfs.get_returncode() != 0:
             log.debug("mkfs failed ({}): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
             raise RuntimeError(mkfs.get_stderr())
