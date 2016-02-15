@@ -58,6 +58,9 @@ class PartedRuntimeError(PartedException):
 class InvalidPartitionTable(PartedException):
     pass
 
+class InvalidToken(PartedRuntimeError):
+    pass
+
 def _get_parted_version():
     from infi.execute import execute
     try:
@@ -124,6 +127,9 @@ def execute_parted(args):
         if "aligned for best performance" in parted.get_stdout():
             # HIP-330 we something get. according to parted's source, this is a warning
             return parted.get_stdout()
+        if 'invalid token' in parted.get_stderr():
+            # this happens on with vfat filesystems on centos 7.2
+            raise InvalidToken(parted.get_returncode(), parted.get_stdout())
         raise PartedRuntimeError(parted.get_returncode(),
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
@@ -225,12 +231,20 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def _create_gpt_partition(self, name, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend([name, filesystem_name, start, end])
-        self.execute_parted(args)
+        try:
+            self.execute_parted(args)
+        except InvalidToken:
+            args.pop(4)
+            self.execute_parted(args)
 
     def _create_primary_partition(self, filesystem_name, start, end):
         args = ["unit", "B", "mkpart", ]
         args.extend(["primary", filesystem_name, start, end])
-        self.execute_parted(args)
+        try:
+            self.execute_parted(args)
+        except InvalidToken:
+            args.pop(4)
+            self.execute_parted(args)
 
     def create_partition_for_whole_drive(self, filesystem_name, alignment_in_bytes=None):
         if not self.has_partition_table():
@@ -280,7 +294,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def _execute_mkfs(self, filesystem_name, partition_access_path):
         from infi.execute import execute
         log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
-        mkfs = execute(["mkfs.{}".format(filesystem_name), "-F", partition_access_path])
+        mkfs = execute(["mkfs.{}".format(filesystem_name), partition_access_path])
         if mkfs.get_returncode() != 0:
             log.debug("mkfs failed ({}): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
             raise RuntimeError(mkfs.get_stderr())
@@ -291,15 +305,6 @@ class Disk(MatchingPartedMixin, Retryable, object):
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
-        """currently mkfs_options is ignored"""
-        try:
-            self.execute_parted(["mkfs", str(partition_number), filesystem_name])
-        except PartedRuntimeError, error:
-            log.exception("parted error")
-            if "not implemented yet" in error.get_error_message():
-                pass
-            else:
-                raise
         self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
         self._execute_mkfs(filesystem_name, partition_access_path)
