@@ -35,7 +35,7 @@ def get_multipath_prefix(disk_access_path):
     if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
         return '-part'
     if ldist.startswith("suse"):
-        return '_part'
+        return '_part' if '11' in linux_ver else '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
