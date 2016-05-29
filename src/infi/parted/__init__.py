@@ -344,7 +344,8 @@ class Partition(object):
         execute(["partprobe", format(self._disk_block_access_path)]).wait()
 
     def get_filesystem_name(self):
-        return self._filesystem or self.get_filesystem_name_from_blkid()
+        # HPT-1820 blkid is more reliable than self._filesystem we got from parted
+        return self.get_filesystem_name_from_blkid() or self._filesystem
 
     def get_filesystem_name_from_blkid(self):
         from infi.execute import execute_assert_success
