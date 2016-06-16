@@ -16,14 +16,11 @@ class PartedException(InfiException):
 class PartedNotInstalledException(PartedException):
     pass
 
-def is_ubuntu():
-    from platform import linux_distribution
-    return linux_distribution()[0].lower().startswith("ubuntu")
-
 def get_multipath_prefix(disk_access_path):
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
+    # ubuntu-16.04: /dev/mapper/mpath[a-z]+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
     from platform import linux_distribution
@@ -32,8 +29,13 @@ def get_multipath_prefix(disk_access_path):
     ldist = linux_dist.lower()
     if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
         return ''
-    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
-        return '-part'
+    if ldist.startswith("ubuntu"):
+        if match('.*mpath[0-9]+', disk_access_path):
+            return '-part'
+        # For ubuntu 16.04 and above:
+        major, minor = linux_ver.split('.')
+        if int(major) >= 16 and int(minor) >= 4:
+            return '-part'
     if ldist.startswith("suse"):
         return '_part' if '11' in linux_ver else '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
