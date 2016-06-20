@@ -16,20 +16,29 @@ class PartedException(InfiException):
 class PartedNotInstalledException(PartedException):
     pass
 
+def is_ubuntu():
+    from platform import linux_distribution
+    return linux_distribution()[0].lower().startswith("ubuntu")
+
 def get_multipath_prefix(disk_access_path):
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
-    # ubuntu-16.04: /dev/mapper/mpath[a-z]+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
-    access_path_match = match(r'.*mpath([a-z]+|\d+)(?P<symbol>_|\-)?'
-                              '(?P<prefix>p|part)\d+', disk_access_path)
-    if access_path_match:
-        symbol = (access_path_match.groupdict()['symbol'] if
-                  access_path_match.groupdict()['symbol'] else '')
-        return '{}{}'.format(symbol, access_path_match.groupdict()['prefix'])
-    return ''
+    from platform import linux_distribution
+    # for redhat / centos 7 - use no prefix
+    linux_dist, linux_ver, _id = linux_distribution()
+    ldist = linux_dist.lower()
+    if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
+        return ''
+    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
+        return '-part'
+    if ldist.startswith("suse"):
+        return '_part' if '11' in linux_ver else '-part'
+    if match('.*mpath[a-z]+.*', disk_access_path):
+        return 'p'
+    return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
 
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
