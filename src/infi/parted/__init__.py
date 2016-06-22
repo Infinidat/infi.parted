@@ -122,7 +122,7 @@ def get_multipath_partition_name(device_access_path):
         log.debug(kpartx_cmd.get_stdout())
 
     # Return the first partition returned:
-    kpartx_result = kpartx.get_stdout().splitlines()[0]
+    kpartx_result = kpartx_cmd.get_stdout().splitlines()[0]
     return kpartx_result.split(' :')[0]
 
 SUPPORTED_DISK_LABELS = ["gpt", "msdos"]
