@@ -16,6 +16,30 @@ class PartedException(InfiException):
 class PartedNotInstalledException(PartedException):
     pass
 
+def is_ubuntu():
+    from platform import linux_distribution
+    return linux_distribution()[0].lower().startswith("ubuntu")
+
+def get_multipath_prefix(disk_access_path):
+    # when used with user_friendly_names:
+    # redhat: /dev/mapper/mpath[a-z]
+    # ubuntu: /dev/mapper/mpath%d+
+    # suse: /dev/mapper/mpath[a-z]
+    from re import match
+    from platform import linux_distribution
+    # for redhat / centos 7 - use no prefix
+    linux_dist, linux_ver, _id = linux_distribution()
+    ldist = linux_dist.lower()
+    if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
+        return ''
+    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
+        return '-part'
+    if ldist.startswith("suse"):
+        return '_part' if '11' in linux_ver else '-part'
+    if match('.*mpath[a-z]+.*', disk_access_path):
+        return 'p'
+    return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
+
 class PartedRuntimeError(PartedException):
     def __init__(self, returncode, error_message):
         super(PartedRuntimeError, self).__init__()
@@ -110,20 +134,6 @@ def execute_parted(args):
                                  _get_parted_error_message_from_stderr(parted.get_stdout()))
     return parted.get_stdout()
 
-def get_multipath_partition_name(device_access_path):
-    from infi.execute import execute
-    # Get the list of partitions for the current multipath device:
-    log.debug("executing {}".format(" ".join(['kpartx', '-l', device_access_path])))
-    kpartx_cmd = execute(['kpartx', '-l', device_access_path])
-    if kpartx_cmd.get_returncode() != 0:
-        log.debug("kpartx returned non-zero exit code: {}, stderr and stdout to follow".format(
-           kpartx_cmd.get_returncode()))
-        log.debug(kpartx_cmd.get_stderr())
-        log.debug(kpartx_cmd.get_stdout())
-
-    # Return the first partition returned:
-    kpartx_result = kpartx_cmd.get_stdout().splitlines()[0]
-    return kpartx_result.split(' :')[0]
 
 SUPPORTED_DISK_LABELS = ["gpt", "msdos"]
 
@@ -290,9 +300,9 @@ class Disk(MatchingPartedMixin, Retryable, object):
             raise RuntimeError(mkfs.get_stderr())
         log.info("filesystem formatted")
 
-    def _get_partition_access_path_by_name(self, partition_number):
-        partition_name = get_multipath_partition_name(self._device_access_path)[:-1]
-        return "{}{}".format(partition_name, partition_number)
+    def _get_partition_acces_path_by_name(self, partition_number):
+        prefix = get_multipath_prefix(self._device_access_path) if 'mapper' in self._device_access_path else ''
+        return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
         self.force_kernel_to_re_read_partition_table()
@@ -348,12 +358,6 @@ class Partition(object):
         # UUID="b6e84210-326d-4131-9916-b0fb1d254b5a" SEC_TYPE="ext2" TYPE="ext3"
         return search(r' TYPE="([^\"]+)*"', output).group(1)
 
-    def get_access_path(self):
-        import os.path
-        partition_name = get_multipath_partition_name(self._disk_block_access_path)
-        access_path_dir = os.path.split(self._disk_block_access_path)
-        return os.path.join(access_path_dir, partition_name)
-
 
 class MBRPartition(Partition):
     def __init__(self, disk_block_access_path, number, partition_type, start, end, size, filesystem):
@@ -366,6 +370,10 @@ class MBRPartition(Partition):
 
     def get_type(self):
         return self._type
+
+    def get_access_path(self):
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
+        return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     def resize(self, size_in_bytes):
         raise NotImplementedError()
@@ -394,6 +402,10 @@ class GUIDPartition(Partition):
 
     def get_name(self):
         return self._name
+
+    def get_access_path(self):
+        prefix = get_multipath_prefix(self._disk_block_access_path) if 'mapper' in self._disk_block_access_path else ''
+        return "{}{}{}".format(self._disk_block_access_path, prefix, self._number)
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
