@@ -21,21 +21,52 @@ def is_ubuntu():
     return linux_distribution()[0].lower().startswith("ubuntu")
 
 def get_multipath_prefix(disk_access_path):
+    """Multipath prefix decision is done in two places: kpartx source files
+    (kpartx.c under set_delimiter function) and in the udev rules. To set the
+    prefix, the user needs to pass the -p flag to kpartx. Under most OSes, this
+    indeed happens in the udev rules, as follows:
+    OS                    | Prefix
+    ------------------------------
+    Ubuntu 14.04 & 16.04  | -part
+    Redhat 5 / CentOS 5   | p
+    Redhat 6 / CentOS 6   | p
+    Redhat 7 / CentOS 7   | * (see below)
+    SUSE 11               | _part
+    SUSE 12               | _part and -part ** (see below)
+
+    * In RH & CentOS 7, the prefix is not configured in the udev rules, hence
+    the definition is taken from the kpartx sources. In this case, the prefix
+    is decided by kpartx source code (set_delimiter function), based on the
+    last character of the disk access path:
+    - If it is a digit, no prefix is used
+    - If it is not a digit, the prefix is 'p'
+    ** For comparability with SUSE 11, both _part and -part are created.
+    """
+
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
     from platform import linux_distribution
-    # for redhat / centos 7 - use no prefix
+
     linux_dist, linux_ver, _id = linux_distribution()
     ldist = linux_dist.lower()
-    if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
-        return ''
-    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
+    # For redhat / centos 7:
+    # - if device access path ends with a digit, use no prefix
+    # - if device access does not end with a digit, use 'p' as a prefix
+    if ldist.startswith("red hat") or ldist.startswith("centos"):
+        if linux_ver.split(".")[0] == "7":
+            if disk_access_path[-1].isdigit():
+                return ''
+            else:
+                return 'p'
+        else:
+            return 'p'
+    if ldist.startswith("ubuntu"):
         return '-part'
     if ldist.startswith("suse"):
-        return '_part' if '11' in linux_ver else '-part'
+        return '_part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
