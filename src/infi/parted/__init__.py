@@ -38,8 +38,8 @@ def get_multipath_prefix(disk_access_path):
     the definition is taken from the kpartx sources. In this case, the prefix
     is decided by kpartx source code (set_delimiter function), based on the
     last character of the disk access path:
-    - If it is a digit, no prefix is used
-    - If it is not a digit, the prefix is 'p'
+    - If it is a digit, the prefix is 'p'
+    - If it is not a digit, not prefix is used
     ** For comparability with SUSE 11, both _part and -part are created.
     """
 
@@ -58,9 +58,9 @@ def get_multipath_prefix(disk_access_path):
     if ldist.startswith("red hat") or ldist.startswith("centos"):
         if linux_ver.split(".")[0] == "7":
             if disk_access_path[-1].isdigit():
-                return ''
-            else:
                 return 'p'
+            else:
+                return ''
         else:
             return 'p'
     if ldist.startswith("ubuntu"):
