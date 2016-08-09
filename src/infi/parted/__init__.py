@@ -320,6 +320,8 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
         execute(["partprobe", format(self._device_access_path)]).wait()
+        execute(["multipath", '-f', format(self._device_access_path)]).wait()
+        execute(["multipath"]).wait()
 
     @retry_func(WaitAndRetryStrategy(max_retries=120, wait=5))
     def _execute_mkfs(self, filesystem_name, partition_access_path):
