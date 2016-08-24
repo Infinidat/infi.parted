@@ -40,7 +40,8 @@ def get_multipath_prefix(disk_access_path):
     last character of the disk access path:
     - If it is a digit, the prefix is 'p'
     - If it is not a digit, not prefix is used
-    ** For comparability with SUSE 11, both _part and -part are created.
+
+    ** In SUSE 12, mounts are using -part and not _part
     """
 
     # when used with user_friendly_names:
@@ -66,7 +67,9 @@ def get_multipath_prefix(disk_access_path):
     if ldist.startswith("ubuntu"):
         return '-part'
     if ldist.startswith("suse"):
-        return '_part'
+        if linux_ver.split('.')[0] == '11':
+            return '_part'
+        return '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
