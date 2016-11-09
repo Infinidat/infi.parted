@@ -362,7 +362,7 @@ def from_string(capacity_string):
     except ValueError:  # \d+B
         return int(capacity_string[:-1])
 
-class Partition(object):
+class Partition(Retryable, object):
     def __init__(self, disk_block_access_path, number, start, end, size):
         super(Partition, self).__init__()
         self._disk_block_access_path = disk_block_access_path
@@ -390,6 +390,7 @@ class Partition(object):
         # HPT-1820 blkid is more reliable than self._filesystem we got from parted
         return self.get_filesystem_name_from_blkid() or self._filesystem
 
+    @retry_func(WaitAndRetryStrategy(max_retries=3, wait=5))
     def get_filesystem_name_from_blkid(self):
         from infi.execute import execute_assert_success
         from re import search
