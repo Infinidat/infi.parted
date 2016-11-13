@@ -311,12 +311,15 @@ class Disk(MatchingPartedMixin, Retryable, object):
         if not path.exists(access_path):
             log.debug("partitions are {!r}".format([p.get_access_path() for p in partitions]))
             log.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
+            self.force_kernel_to_re_read_partition_table()
             raise PartedException("Block access path for created partition does not exist")
         log.debug("Partition access path {!r} exists".format(access_path))
         if not path.islink(access_path):
-            return
+            self.force_kernel_to_re_read_partition_table()
+            raise PartedException("Block access path is not a symlink")
         link_path = path.abspath(path.join(path.dirname(access_path), readlink(access_path)))
         if not path.exists(link_path):
+            self.force_kernel_to_re_read_partition_table()
             raise PartedException("Read-link Block access path for created partition does not exist")
         log.debug("Read-link Partition access path {!r} exists".format(link_path))
 
