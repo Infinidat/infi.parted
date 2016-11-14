@@ -315,12 +315,8 @@ class Disk(MatchingPartedMixin, Retryable, object):
             self.force_kernel_to_re_read_partition_table()
             raise PartedException("Block access path for created partition does not exist")
         log.debug("Partition access path {!r} exists".format(access_path))
-        if not path.islink(access_path):
-            self.force_kernel_to_re_read_partition_table()
-            raise PartedException("Block access path is not a symlink")
-        link_path = path.abspath(path.join(path.dirname(access_path), readlink(access_path)))
         try:
-            with open(link_path):
+            with open(access_path):
                 pass
         except:
             self.force_kernel_to_re_read_partition_table()
