@@ -304,6 +304,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def wait_for_partition_access_path_to_be_created(self):
         from os import path, readlink
         from glob import glob
+        from time import sleep
         partitions = self.get_partitions()
         if not partitions:
             raise PartedException("Failed to find partition after creating one")
@@ -323,6 +324,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
                 pass
         except:
             self.force_kernel_to_re_read_partition_table()
+            sleep(3)
             raise PartedException("Read-link Block access path not readable")
         log.debug("Read-link Partition access path {!r} exists".format(link_path))
 
