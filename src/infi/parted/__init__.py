@@ -318,9 +318,12 @@ class Disk(MatchingPartedMixin, Retryable, object):
             self.force_kernel_to_re_read_partition_table()
             raise PartedException("Block access path is not a symlink")
         link_path = path.abspath(path.join(path.dirname(access_path), readlink(access_path)))
-        if not path.exists(link_path):
+        try:
+            with open(link_path):
+                pass
+        except:
             self.force_kernel_to_re_read_partition_table()
-            raise PartedException("Read-link Block access path for created partition does not exist")
+            raise PartedException("Read-link Block access path not readable")
         log.debug("Read-link Partition access path {!r} exists".format(link_path))
 
     def force_kernel_to_re_read_partition_table(self):
