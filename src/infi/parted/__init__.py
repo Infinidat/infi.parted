@@ -314,7 +314,6 @@ class Disk(MatchingPartedMixin, Retryable, object):
             log.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
             self.force_kernel_to_re_read_partition_table()
             raise PartedException("Block access path for created partition does not exist")
-        log.debug("Partition access path {!r} exists".format(access_path))
         try:
             with open(access_path):
                 pass
@@ -322,7 +321,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
             self.force_kernel_to_re_read_partition_table()
             sleep(3)
             raise PartedException("Read-link Block access path not readable")
-        log.debug("Read-link Partition access path {!r} exists".format(link_path))
+        log.debug("Read-link Partition access path {!r} exists".format(access_path))
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
