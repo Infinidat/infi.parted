@@ -351,7 +351,6 @@ class Disk(MatchingPartedMixin, Retryable, object):
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
     def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
-        self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
         self._execute_mkfs(filesystem_name, partition_access_path)
 
