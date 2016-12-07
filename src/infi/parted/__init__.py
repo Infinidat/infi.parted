@@ -336,11 +336,25 @@ class Disk(MatchingPartedMixin, Retryable, object):
         log.info("executing: multipath")
         execute(["multipath"])
 
+    def _str_extended_options(self, extended_options):
+        if extended_options.keys() == []:
+            return ''
+        options = ''
+        for key, value in extended_options.iteritems():
+            if value is True:
+                options += "{},".format(key)
+            else:
+                options += "{}={},".format(key, value)
+        return ['-E', options.strip(',')]
+
     @retry_func(WaitAndRetryStrategy(max_retries=120, wait=5))
-    def _execute_mkfs(self, filesystem_name, partition_access_path):
+    def _execute_mkfs(self, filesystem_name, partition_access_path, **extended_options):
         from infi.execute import execute
-        log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
-        mkfs = execute(["mkfs.{}".format(filesystem_name), partition_access_path])
+
+        args = ["mkfs.{}".format(filesystem_name), partition_access_path]
+        args.extend(self._str_extended_options(extended_options))
+        log.info("executing {}".format(' '.join(args)))
+        mkfs = execute(args)
         if mkfs.get_returncode() != 0:
             log.debug("mkfs failed ({}): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
             raise RuntimeError(mkfs.get_stderr())
@@ -350,9 +364,10 @@ class Disk(MatchingPartedMixin, Retryable, object):
         prefix = get_multipath_prefix(self._device_access_path) if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
-    def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
+    def format_partition(self, partition_number, filesystem_name, **extended_options):    # pylint: disable=W0102
+        self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
-        self._execute_mkfs(filesystem_name, partition_access_path)
+        self._execute_mkfs(filesystem_name, partition_access_path, **extended_options)
 
 # pylint: disable=R0913
 
