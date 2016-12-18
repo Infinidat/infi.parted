@@ -21,21 +21,55 @@ def is_ubuntu():
     return linux_distribution()[0].lower().startswith("ubuntu")
 
 def get_multipath_prefix(disk_access_path):
+    """Multipath prefix decision is done in two places: kpartx source files
+    (kpartx.c under set_delimiter function) and in the udev rules. To set the
+    prefix, the user needs to pass the -p flag to kpartx. Under most OSes, this
+    indeed happens in the udev rules, as follows:
+    OS                    | Prefix
+    ------------------------------
+    Ubuntu 14.04 & 16.04  | -part
+    Redhat 5 / CentOS 5   | p
+    Redhat 6 / CentOS 6   | p
+    Redhat 7 / CentOS 7   | * (see below)
+    SUSE 11               | _part
+    SUSE 12               | _part and -part ** (see below)
+
+    * In RH & CentOS 7, the prefix is not configured in the udev rules, hence
+    the definition is taken from the kpartx sources. In this case, the prefix
+    is decided by kpartx source code (set_delimiter function), based on the
+    last character of the disk access path:
+    - If it is a digit, the prefix is 'p'
+    - If it is not a digit, not prefix is used
+
+    ** In SUSE 12, mounts are using -part and not _part
+    """
+
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
     from platform import linux_distribution
-    # for redhat / centos 7 - use no prefix
+
     linux_dist, linux_ver, _id = linux_distribution()
     ldist = linux_dist.lower()
-    if (ldist.startswith("red hat") or ldist.startswith("centos")) and linux_ver.split(".")[0] == "7":
-        return ''
-    if ldist.startswith("ubuntu") and match('.*mpath[0-9]+', disk_access_path):
+    # For redhat / centos 7:
+    # - if device access path ends with a digit, use no prefix
+    # - if device access does not end with a digit, use 'p' as a prefix
+    if ldist.startswith("red hat") or ldist.startswith("centos"):
+        if linux_ver.split(".")[0] == "7":
+            if disk_access_path[-1].isdigit():
+                return 'p'
+            else:
+                return ''
+        else:
+            return 'p'
+    if ldist.startswith("ubuntu"):
         return '-part'
     if ldist.startswith("suse"):
-        return '_part' if '11' in linux_ver else '-part'
+        if linux_ver.split('.')[0] == '11':
+            return '_part'
+        return '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
@@ -270,6 +304,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
     def wait_for_partition_access_path_to_be_created(self):
         from os import path, readlink
         from glob import glob
+        from time import sleep
         partitions = self.get_partitions()
         if not partitions:
             raise PartedException("Failed to find partition after creating one")
@@ -277,24 +312,49 @@ class Disk(MatchingPartedMixin, Retryable, object):
         if not path.exists(access_path):
             log.debug("partitions are {!r}".format([p.get_access_path() for p in partitions]))
             log.debug("globbing /dev/mapper/* returned {!r}".format(glob("/dev/mapper/*")))
+            self.force_kernel_to_re_read_partition_table()
             raise PartedException("Block access path for created partition does not exist")
-        log.debug("Partition access path {!r} exists".format(access_path))
-        if not path.islink(access_path):
-            return
-        link_path = path.abspath(path.join(path.dirname(access_path), readlink(access_path)))
-        if not path.exists(link_path):
-            raise PartedException("Read-link Block access path for created partition does not exist")
-        log.debug("Read-link Partition access path {!r} exists".format(link_path))
+        try:
+            with open(access_path):
+                pass
+        except:
+            self.force_kernel_to_re_read_partition_table()
+            sleep(3)
+            raise PartedException("Read-link Block access path not readable")
+        log.debug("Read-link Partition access path {!r} exists".format(access_path))
 
     def force_kernel_to_re_read_partition_table(self):
         from infi.execute import execute
-        execute(["partprobe", format(self._device_access_path)]).wait()
+        from os import path
+
+        log.info("executing: partprobe {}".format(self._device_access_path))
+        execute(["partprobe", format(self._device_access_path)])
+
+        log.info("executing: multipath -f {}".format(path.basename(self._device_access_path)))
+        execute(["multipath", '-f', format(path.basename(self._device_access_path))])
+
+        log.info("executing: multipath")
+        execute(["multipath"])
+
+    def _str_extended_options(self, extended_options):
+        if extended_options.keys() == []:
+            return ''
+        options = ''
+        for key, value in extended_options.iteritems():
+            if value is True:
+                options += "{},".format(key)
+            else:
+                options += "{}={},".format(key, value)
+        return ['-E', options.strip(',')]
 
     @retry_func(WaitAndRetryStrategy(max_retries=120, wait=5))
-    def _execute_mkfs(self, filesystem_name, partition_access_path):
+    def _execute_mkfs(self, filesystem_name, partition_access_path, **extended_options):
         from infi.execute import execute
-        log.info("executing mkfs.{} for {}".format(filesystem_name, partition_access_path))
-        mkfs = execute(["mkfs.{}".format(filesystem_name), partition_access_path])
+
+        args = ["mkfs.{}".format(filesystem_name), partition_access_path]
+        args.extend(self._str_extended_options(extended_options))
+        log.info("executing {}".format(' '.join(args)))
+        mkfs = execute(args)
         if mkfs.get_returncode() != 0:
             log.debug("mkfs failed ({}): {} {}".format(mkfs.get_returncode(), mkfs.get_stdout(), mkfs.get_stderr()))
             raise RuntimeError(mkfs.get_stderr())
@@ -304,10 +364,10 @@ class Disk(MatchingPartedMixin, Retryable, object):
         prefix = get_multipath_prefix(self._device_access_path) if 'mapper' in self._device_access_path else ''
         return "{}{}{}".format(self._device_access_path, prefix, partition_number)
 
-    def format_partition(self, partition_number, filesystem_name, mkfs_options={}): # pylint: disable=W0102
+    def format_partition(self, partition_number, filesystem_name, **extended_options):    # pylint: disable=W0102
         self.force_kernel_to_re_read_partition_table()
         partition_access_path = self._get_partition_acces_path_by_name(partition_number)
-        self._execute_mkfs(filesystem_name, partition_access_path)
+        self._execute_mkfs(filesystem_name, partition_access_path, **extended_options)
 
 # pylint: disable=R0913
 
@@ -319,7 +379,7 @@ def from_string(capacity_string):
     except ValueError:  # \d+B
         return int(capacity_string[:-1])
 
-class Partition(object):
+class Partition(Retryable, object):
     def __init__(self, disk_block_access_path, number, start, end, size):
         super(Partition, self).__init__()
         self._disk_block_access_path = disk_block_access_path
@@ -347,6 +407,7 @@ class Partition(object):
         # HPT-1820 blkid is more reliable than self._filesystem we got from parted
         return self.get_filesystem_name_from_blkid() or self._filesystem
 
+    @retry_func(WaitAndRetryStrategy(max_retries=3, wait=5))
     def get_filesystem_name_from_blkid(self):
         from infi.execute import execute_assert_success
         from re import search
