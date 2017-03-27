@@ -440,7 +440,7 @@ class MBRPartition(Partition):
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        number, start, end, size, filesystem, _type, flags = line.strip(';').split(':')
+        number, start, end, size, filesystem, _type = line.strip(';').rsplit(':', 1)[0].split(':',5)
         return cls(disk_device_path, int(number), _type, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
@@ -469,7 +469,7 @@ class GUIDPartition(Partition):
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        number, start, end, size, filesystem, name, flags = line.strip(';').split(':')
+        number, start, end, size, filesystem, name = line.strip(';').rsplit(':', 1)[0].split(':',5)
         return cls(disk_device_path, int(number), name, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
