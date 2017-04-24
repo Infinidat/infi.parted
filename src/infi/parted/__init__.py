@@ -16,6 +16,9 @@ class PartedException(InfiException):
 class PartedNotInstalledException(PartedException):
     pass
 
+class GetFilesystemException(PartedException):
+    pass
+
 def is_ubuntu():
     from platform import linux_distribution
     return linux_distribution()[0].lower().startswith("ubuntu")
@@ -408,15 +411,23 @@ class Partition(Retryable, object):
 
     @retry_func(WaitAndRetryStrategy(max_retries=3, wait=5))
     def get_filesystem_name_from_blkid(self):
-        from infi.execute import execute_assert_success
+        from infi.execute import execute_assert_success, ExecutionError
         from re import search
-        output = execute_assert_success(["blkid", self.get_access_path()]).get_stdout()
+        try:
+            output = execute_assert_success(["blkid", self.get_access_path()]).get_stdout()
+        except ExecutionError:
+            log.exception("execution of blkid failed")
+            raise GetFilesystemException()
         # HIP-1433 blkid sometimes shows SEC_TYPE
         # https://access.redhat.com/solutions/705653
         # http://ubuntuforums.org/showthread.php?t=1177419
         # For example:
         # UUID="b6e84210-326d-4131-9916-b0fb1d254b5a" SEC_TYPE="ext2" TYPE="ext3"
-        return search(r' TYPE="([^\"]+)*"', output).group(1)
+        matchobj = search(r' TYPE="([^\"]+)*"', output)
+        if matchobj is None:
+            log.error("failed to determine filesystem name from blkid output. output is: {}".format(output))
+            raise GetFilesystemException()
+        return matchobj.group(1)
 
 
 class MBRPartition(Partition):
@@ -440,7 +451,7 @@ class MBRPartition(Partition):
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        number, start, end, size, filesystem, _type, flags = line.strip(';').split(':')
+        number, start, end, size, filesystem, _type = line.strip(';').rsplit(':', 1)[0].split(':',5)
         return cls(disk_device_path, int(number), _type, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
@@ -469,7 +480,7 @@ class GUIDPartition(Partition):
 
     @classmethod
     def from_parted_machine_parsable_line(cls, disk_device_path, line):
-        number, start, end, size, filesystem, name, flags = line.strip(';').split(':')
+        number, start, end, size, filesystem, name = line.strip(';').rsplit(':', 1)[0].split(':',5)
         return cls(disk_device_path, int(number), name, from_string(start), from_string(end), from_string(size), filesystem)
 
     @classmethod
