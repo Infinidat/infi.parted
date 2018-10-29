@@ -110,7 +110,7 @@ def _get_parted_version():
     # or
     # parted (GNU parted) 2.1
     # Copyright ..
-    return parted.get_stdout().splitlines()[0].split()[-1]
+    return parted.get_stdout().splitlines()[0].split()[-1].decode("ascii")
 
 def _is_parted_has_machine_parsable_output():
     from pkg_resources import parse_version
