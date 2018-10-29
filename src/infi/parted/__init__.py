@@ -245,7 +245,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         try:
             self.read_partition_table()
             return True
-        except PartedRuntimeError, error:
+        except PartedRuntimeError as error:
             if "unrecognised disk label" in error.get_error_message():
                 pass
             elif "exceeds the loop-partition-table-impose" in error.get_error_message():
@@ -340,10 +340,10 @@ class Disk(MatchingPartedMixin, Retryable, object):
         execute(["multipath"])
 
     def _str_extended_options(self, extended_options):
-        if extended_options.keys() == []:
+        if list(extended_options.keys()) == []:
             return ''
         options = ''
-        for key, value in extended_options.iteritems():
+        for key, value in extended_options.items():
             if value is True:
                 options += "{},".format(key)
             else:
