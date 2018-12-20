@@ -110,7 +110,7 @@ def _get_parted_version():
     # or
     # parted (GNU parted) 2.1
     # Copyright ..
-    return parted.get_stdout().splitlines()[0].split()[-1]
+    return parted.get_stdout().splitlines()[0].split()[-1].decode("ascii")
 
 def _is_parted_has_machine_parsable_output():
     from pkg_resources import parse_version
@@ -245,7 +245,7 @@ class Disk(MatchingPartedMixin, Retryable, object):
         try:
             self.read_partition_table()
             return True
-        except PartedRuntimeError, error:
+        except PartedRuntimeError as error:
             if "unrecognised disk label" in error.get_error_message():
                 pass
             elif "exceeds the loop-partition-table-impose" in error.get_error_message():
@@ -340,10 +340,10 @@ class Disk(MatchingPartedMixin, Retryable, object):
         execute(["multipath"])
 
     def _str_extended_options(self, extended_options):
-        if extended_options.keys() == []:
+        if list(extended_options.keys()) == []:
             return ''
         options = ''
-        for key, value in extended_options.iteritems():
+        for key, value in extended_options.items():
             if value is True:
                 options += "{},".format(key)
             else:
