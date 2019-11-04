@@ -42,7 +42,7 @@ def get_multipath_prefix(disk_access_path):
     is decided by kpartx source code (set_delimiter function), based on the
     last character of the disk access path:
     - If it is a digit, the prefix is 'p'
-    - If it is not a digit, not prefix is used
+    - If it is not a digit, no prefix is used
 
     ** In SUSE 12, mounts are using -part and not _part
     """
@@ -57,10 +57,10 @@ def get_multipath_prefix(disk_access_path):
     linux_dist, linux_ver, _id = linux_distribution()
     ldist = linux_dist.lower()
     # For redhat / centos 7:
-    # - if device access path ends with a digit, use no prefix
-    # - if device access does not end with a digit, use 'p' as a prefix
+    # - if device access path ends with a digit, use 'p' as a prefix
+    # - if device access does not end with a digit, use no prefix
     if ldist.startswith("red hat") or ldist.startswith("centos"):
-        if linux_ver.split(".")[0] == "7":
+        if linux_ver.split(".")[0] in ("7", "8"):
             if disk_access_path[-1].isdigit():
                 return 'p'
             else:
