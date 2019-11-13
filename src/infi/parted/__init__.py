@@ -20,7 +20,7 @@ class GetFilesystemException(PartedException):
     pass
 
 def is_ubuntu():
-    from platform import linux_distribution
+    from distro import linux_distribution
     return linux_distribution()[0].lower().startswith("ubuntu")
 
 def get_multipath_prefix(disk_access_path):
@@ -52,7 +52,7 @@ def get_multipath_prefix(disk_access_path):
     # ubuntu: /dev/mapper/mpath%d+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
-    from platform import linux_distribution
+    from distro import linux_distribution
 
     linux_dist, linux_ver, _id = linux_distribution()
     ldist = linux_dist.lower()
