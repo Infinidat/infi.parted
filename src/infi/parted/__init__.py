@@ -20,8 +20,8 @@ class GetFilesystemException(PartedException):
     pass
 
 def is_ubuntu():
-    from distro import linux_distribution
-    return linux_distribution()[0].lower().startswith("ubuntu")
+    import distro
+    return distro.id() == "ubuntu"
 
 def get_multipath_prefix(disk_access_path):
     """Multipath prefix decision is done in two places: kpartx source files
@@ -54,12 +54,12 @@ def get_multipath_prefix(disk_access_path):
     from re import match
     from distro import linux_distribution
 
-    linux_dist, linux_ver, _id = linux_distribution()
-    ldist = linux_dist.lower()
+    linux_dist, linux_ver, _id = linux_distribution(full_distribution_name=False)
+    ldist = linux_dist.replace('rhel', 'redhat').replace('sles', 'suse')
     # For redhat / centos 7:
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
-    if ldist.startswith("red hat") or ldist.startswith("centos"):
+    if ldist.startswith("redhat") or ldist.startswith("centos"):
         if linux_ver.split(".")[0] in ("7", "8"):
             if disk_access_path[-1].isdigit():
                 return 'p'
