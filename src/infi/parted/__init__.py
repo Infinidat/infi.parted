@@ -146,30 +146,32 @@ def execute_parted(args):
     except OSError:
         raise PartedNotInstalledException()
     parted.wait()
+    stdout = parted.get_stdout().decode()
+    stderr = parted.get_stderr().decode()
     if parted.get_returncode() != 0:
         log.debug("parted returned non-zero exit code: {}, stderr and stdout to follow".format(parted.get_returncode()))
-        log.debug(parted.get_stderr())
-        log.debug(parted.get_stdout())
-        if "device-mapper: create ioctl" in parted.get_stderr():
+        log.debug(stderr)
+        log.debug(stdout)
+        if "device-mapper: create ioctl" in stderr:
             # this happens sometimes on redhat-7
             # at first we added a retry, but the repeating execution printed:
             # You requested a partition from 65536B to 999934464B (sectors 128..1952997).
             # The closest location we can manage is 65024B to 65024B (sectors 127..127).
             # meaning the first execution suceeded to create the partition
             # so now we're just ignore the return code in case we see this message
-            return parted.get_stdout()
-        if "WARNING" in parted.get_stdout():
+            return stdout
+        if "WARNING" in stdout:
             # don't know what's the error code in this case, and failed to re-create it
-            return parted.get_stdout()
-        if "aligned for best performance" in parted.get_stdout():
+            return stdout
+        if "aligned for best performance" in stdout:
             # HIP-330 we something get. according to parted's source, this is a warning
-            return parted.get_stdout()
+            return stdout
         if 'invalid token' in parted.get_stderr():
             # this happens on with vfat filesystems on centos 7.2
-            raise InvalidToken(parted.get_returncode(), parted.get_stdout())
+            raise InvalidToken(parted.get_returncode(), stdout)
         raise PartedRuntimeError(parted.get_returncode(),
-                                 _get_parted_error_message_from_stderr(parted.get_stdout()))
-    return parted.get_stdout()
+                                 _get_parted_error_message_from_stderr(stdout))
+    return stdout
 
 
 SUPPORTED_DISK_LABELS = ["gpt", "msdos"]
