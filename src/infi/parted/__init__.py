@@ -59,7 +59,7 @@ def get_multipath_prefix(disk_access_path):
     # For redhat / centos 7:
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
-    if ldist.startswith("redhat") or ldist.startswith("centos"):
+    if ldist.startswith("redhat") or ldist.startswith("centos") or ldist.startswith("oracle"):
         if linux_ver.split(".")[0] in ("7", "8"):
             if disk_access_path[-1].isdigit():
                 return 'p'
