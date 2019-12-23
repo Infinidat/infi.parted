@@ -20,8 +20,8 @@ class GetFilesystemException(PartedException):
     pass
 
 def is_ubuntu():
-    from platform import linux_distribution
-    return linux_distribution()[0].lower().startswith("ubuntu")
+    import distro
+    return distro.id() == "ubuntu"
 
 def get_multipath_prefix(disk_access_path):
     """Multipath prefix decision is done in two places: kpartx source files
@@ -42,7 +42,7 @@ def get_multipath_prefix(disk_access_path):
     is decided by kpartx source code (set_delimiter function), based on the
     last character of the disk access path:
     - If it is a digit, the prefix is 'p'
-    - If it is not a digit, not prefix is used
+    - If it is not a digit, no prefix is used
 
     ** In SUSE 12, mounts are using -part and not _part
     """
@@ -52,15 +52,15 @@ def get_multipath_prefix(disk_access_path):
     # ubuntu: /dev/mapper/mpath%d+
     # suse: /dev/mapper/mpath[a-z]
     from re import match
-    from platform import linux_distribution
+    from distro import linux_distribution
 
-    linux_dist, linux_ver, _id = linux_distribution()
-    ldist = linux_dist.lower()
+    linux_dist, linux_ver, _id = linux_distribution(full_distribution_name=False)
+    ldist = linux_dist.replace('rhel', 'redhat').replace('sles', 'suse')
     # For redhat / centos 7:
-    # - if device access path ends with a digit, use no prefix
-    # - if device access does not end with a digit, use 'p' as a prefix
-    if ldist.startswith("red hat") or ldist.startswith("centos"):
-        if linux_ver.split(".")[0] == "7":
+    # - if device access path ends with a digit, use 'p' as a prefix
+    # - if device access does not end with a digit, use no prefix
+    if ldist.startswith("redhat") or ldist.startswith("centos") or ldist.startswith("oracle"):
+        if linux_ver.split(".")[0] in ("7", "8"):
             if disk_access_path[-1].isdigit():
                 return 'p'
             else:
@@ -146,30 +146,32 @@ def execute_parted(args):
     except OSError:
         raise PartedNotInstalledException()
     parted.wait()
+    stdout = parted.get_stdout().decode()
+    stderr = parted.get_stderr().decode()
     if parted.get_returncode() != 0:
         log.debug("parted returned non-zero exit code: {}, stderr and stdout to follow".format(parted.get_returncode()))
-        log.debug(parted.get_stderr())
-        log.debug(parted.get_stdout())
-        if "device-mapper: create ioctl" in parted.get_stderr():
+        log.debug(stderr)
+        log.debug(stdout)
+        if "device-mapper: create ioctl" in stderr:
             # this happens sometimes on redhat-7
             # at first we added a retry, but the repeating execution printed:
             # You requested a partition from 65536B to 999934464B (sectors 128..1952997).
             # The closest location we can manage is 65024B to 65024B (sectors 127..127).
             # meaning the first execution suceeded to create the partition
             # so now we're just ignore the return code in case we see this message
-            return parted.get_stdout()
-        if "WARNING" in parted.get_stdout():
+            return stdout
+        if "WARNING" in stdout:
             # don't know what's the error code in this case, and failed to re-create it
-            return parted.get_stdout()
-        if "aligned for best performance" in parted.get_stdout():
+            return stdout
+        if "aligned for best performance" in stdout:
             # HIP-330 we something get. according to parted's source, this is a warning
-            return parted.get_stdout()
+            return stdout
         if 'invalid token' in parted.get_stderr():
             # this happens on with vfat filesystems on centos 7.2
-            raise InvalidToken(parted.get_returncode(), parted.get_stdout())
+            raise InvalidToken(parted.get_returncode(), stdout)
         raise PartedRuntimeError(parted.get_returncode(),
-                                 _get_parted_error_message_from_stderr(parted.get_stdout()))
-    return parted.get_stdout()
+                                 _get_parted_error_message_from_stderr(stdout))
+    return stdout
 
 
 SUPPORTED_DISK_LABELS = ["gpt", "msdos"]
