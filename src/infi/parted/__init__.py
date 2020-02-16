@@ -425,7 +425,7 @@ class Partition(Retryable, object):
         # http://ubuntuforums.org/showthread.php?t=1177419
         # For example:
         # UUID="b6e84210-326d-4131-9916-b0fb1d254b5a" SEC_TYPE="ext2" TYPE="ext3"
-        matchobj = search(r' TYPE="([^\"]+)*"', output)
+        matchobj = search(r' TYPE="([^\"]+)*"', output.decode())
         if matchobj is None:
             log.error("failed to determine filesystem name from blkid output. output is: {}".format(output))
             raise GetFilesystemException()
