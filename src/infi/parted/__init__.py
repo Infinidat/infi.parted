@@ -166,7 +166,7 @@ def execute_parted(args):
         if "aligned for best performance" in stdout:
             # HIP-330 we something get. according to parted's source, this is a warning
             return stdout
-        if 'invalid token' in parted.get_stderr():
+        if 'invalid token' in stderr:
             # this happens on with vfat filesystems on centos 7.2
             raise InvalidToken(parted.get_returncode(), stdout)
         raise PartedRuntimeError(parted.get_returncode(),
@@ -425,7 +425,7 @@ class Partition(Retryable, object):
         # http://ubuntuforums.org/showthread.php?t=1177419
         # For example:
         # UUID="b6e84210-326d-4131-9916-b0fb1d254b5a" SEC_TYPE="ext2" TYPE="ext3"
-        matchobj = search(r' TYPE="([^\"]+)*"', output)
+        matchobj = search(r' TYPE="([^\"]+)*"', output.decode())
         if matchobj is None:
             log.error("failed to determine filesystem name from blkid output. output is: {}".format(output))
             raise GetFilesystemException()
