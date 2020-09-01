@@ -55,7 +55,7 @@ def get_multipath_prefix(disk_access_path):
     from distro import linux_distribution
 
     linux_dist, linux_ver, _id = linux_distribution(full_distribution_name=False)
-    ldist = linux_dist.replace('rhel', 'redhat').replace('sles', 'suse')
+    ldist = linux_dist.replace('rhel', 'redhat').replace('sles', 'suse').replace('suse_linux', 'suse')
     # For redhat / centos 7:
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
