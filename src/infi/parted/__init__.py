@@ -1,5 +1,6 @@
 __import__("pkg_resources").declare_namespace(__name__)
 
+import distro
 from infi.exceptools import InfiException, chain
 from infi.pyutils.retry import Retryable, WaitAndRetryStrategy, retry_func
 from logging import getLogger
@@ -20,8 +21,7 @@ class GetFilesystemException(PartedException):
     pass
 
 def is_ubuntu():
-    import distro
-    return distro.id() == "ubuntu"
+    return distro.id() == 'ubuntu'
 
 def get_multipath_prefix(disk_access_path):
     """Multipath prefix decision is done in two places: kpartx source files
@@ -31,50 +31,53 @@ def get_multipath_prefix(disk_access_path):
     OS                    | Prefix
     ------------------------------
     Ubuntu 14.04 & 16.04  | -part
-    Redhat 5 / CentOS 5   | p
-    Redhat 6 / CentOS 6   | p
-    Redhat 7 / CentOS 7   | * (see below)
+    RHEL and clones <= 6  | p
+    RHEL and clones >= 7  | * (see below)
     SUSE 11               | _part
-    SUSE 12               | _part and -part ** (see below)
+    SUSE > 11             | _part and -part ** (see below)
 
-    * In RH & CentOS 7, the prefix is not configured in the udev rules, hence
+    * In RHEL and clones > 6, the prefix is not configured in the udev rules, hence
     the definition is taken from the kpartx sources. In this case, the prefix
     is decided by kpartx source code (set_delimiter function), based on the
     last character of the disk access path:
     - If it is a digit, the prefix is 'p'
     - If it is not a digit, no prefix is used
 
-    ** In SUSE 12, mounts are using -part and not _part
+    ** In SUSE > 11, mounts are using -part and not _part
     """
 
     # when used with user_friendly_names:
     # redhat: /dev/mapper/mpath[a-z]
     # ubuntu: /dev/mapper/mpath%d+
     # suse: /dev/mapper/mpath[a-z]
-    from re import match
-    from distro import linux_distribution
 
-    linux_dist, linux_ver, _id = linux_distribution(full_distribution_name=False)
-    ldist = linux_dist.replace('rhel', 'redhat').replace('sles', 'suse').replace('suse_linux', 'suse')
-    # For redhat / centos 7:
+    from re import match
+
+    dist = distro.id()
+    parts = distro.version_parts()
+    version = int(parts[0])
+
+    # For RHEL and clones > 6:
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
-    if ldist.startswith("redhat") or ldist.startswith("centos") or ldist.startswith("oracle"):
-        if linux_ver.split(".")[0] in ("7", "8"):
+    if dist in ('rhel', 'centos', 'oracle', 'rocky', 'almalinux', 'eurolinux'):
+        if version > 6:
             if disk_access_path[-1].isdigit():
                 return 'p'
-            else:
-                return ''
-        else:
-            return 'p'
-    if ldist.startswith("ubuntu"):
+            return ''
+        return 'p'
+
+    if dist == 'ubuntu':
         return '-part'
-    if ldist.startswith("suse"):
-        if linux_ver.split('.')[0] == '11':
+
+    if dist in ('opensuse', 'sles', 'suse_linux', 'suse_sap'):
+        if version == 11:
             return '_part'
         return '-part'
+
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
+
     return '' if any([disk_access_path.endswith(letter) for letter in 'abcdef']) else 'p'
 
 class PartedRuntimeError(PartedException):
