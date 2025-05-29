@@ -65,7 +65,7 @@ def get_multipath_prefix(disk_access_path):
         if version == '11':
             return '_part'
         return '-part'
-    elif dist == 'ubuntu':
+    elif dist in ('debian', 'ubuntu'):
         return '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
