@@ -56,7 +56,7 @@ def get_multipath_prefix(disk_access_path):
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
     if system_is_rhel_based():
-        if version in ('7', '8', '9'):
+        if version in ('7', '8', '9', '10'):
             if disk_access_path[-1].isdigit():
                 return 'p'
             return ''
