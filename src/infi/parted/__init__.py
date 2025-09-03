@@ -77,6 +77,9 @@ class PartedRuntimeError(PartedException):
         self._rc = returncode
         self._em = error_message
 
+    def __reduce__(self):
+        return type(self), (self._rc, self._em)
+
     def __str__(self):
         return self._em
 
