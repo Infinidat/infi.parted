@@ -56,7 +56,7 @@ def get_multipath_prefix(disk_access_path):
     # - if device access path ends with a digit, use 'p' as a prefix
     # - if device access does not end with a digit, use no prefix
     if system_is_rhel_based():
-        if version in ('7', '8', '9'):
+        if version in ('7', '8', '9', '10'):
             if disk_access_path[-1].isdigit():
                 return 'p'
             return ''
@@ -65,7 +65,7 @@ def get_multipath_prefix(disk_access_path):
         if version == '11':
             return '_part'
         return '-part'
-    elif dist == 'ubuntu':
+    elif dist in ('debian', 'ubuntu'):
         return '-part'
     if match('.*mpath[a-z]+.*', disk_access_path):
         return 'p'
@@ -76,6 +76,9 @@ class PartedRuntimeError(PartedException):
         super(PartedRuntimeError, self).__init__()
         self._rc = returncode
         self._em = error_message
+
+    def __reduce__(self):
+        return type(self), (self._rc, self._em)
 
     def __str__(self):
         return self._em
